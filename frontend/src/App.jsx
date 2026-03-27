@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AGENTS } from './constants';
 import { createSession, generatePrompt, generatePromptStreaming, postFeedback } from './utils/api';
 import { normalizeGenerateResponse } from './utils/normalize';
-import { playProgression, stopPlayback } from './utils/playback';
+import { playProgression, playDrumPattern, stopPlayback } from './utils/playback';
 import TopBar from './components/TopBar';
 import AgentBar from './components/AgentBar';
 import SessionPanel from './components/SessionPanel';
@@ -132,8 +132,9 @@ export default function App() {
       const normalized = normalizeGenerateResponse(data);
       setModel(normalized);
 
-      if (normalized && !normalized.clarification_only && !normalized.empty && normalized.bpm) {
-        setBpm(normalized.bpm);
+      if (normalized && !normalized.clarification_only && normalized.bpm != null) {
+        const next = Number(normalized.bpm);
+        if (!Number.isNaN(next)) setBpm(next);
       }
       if (data.cost_usd != null) setTokenCostUsd(data.cost_usd);
       else if (normalized?.cost_usd != null) setTokenCostUsd(normalized.cost_usd);
@@ -146,10 +147,17 @@ export default function App() {
   };
 
   const chords = model?.chords || [];
-  const theoryText = model?.theory_explanation || '';
+  const isDrumSession = model?.mode === 'drums';
+  const drumGrid = model?.drumPattern?.grid;
 
   const handlePlayToggle = async () => {
-    if (!chords.length || loading) return;
+    if (loading) return;
+    if (isDrumSession) {
+      if (!drumGrid || typeof drumGrid !== 'object') return;
+    } else if (!chords.length) {
+      return;
+    }
+
     if (isPlaying) {
       stopPlayback();
       setIsPlaying(false);
@@ -160,7 +168,9 @@ export default function App() {
       return;
     }
     setIsPlaying(true);
-    const dur = await playProgression(bpm, chords, () => {});
+    const dur = isDrumSession
+      ? await playDrumPattern(bpm, drumGrid)
+      : await playProgression(bpm, chords, () => {});
     playTimerRef.current = setTimeout(() => {
       setIsPlaying(false);
       playTimerRef.current = null;
@@ -209,19 +219,26 @@ export default function App() {
 
         <div className={styles.panels}>
           <SessionPanel
+            mode={model?.mode}
             chords={chords}
+            drumGrid={drumGrid}
             bpm={bpm}
             progressionName={model?.progression_name}
             keyName={model?.key}
+            genreContext={model?.genre_context}
           />
           <TheoryPanel
+            mode={model?.mode}
             chords={chords}
+            drumPattern={model?.drumPattern}
             keyName={model?.key}
             scale={model?.scale}
             progressionName={model?.progression_name}
-            theoryExplanation={theoryText}
+            theoryExplanation={model?.theory_explanation}
             voiceLeadingNotes={model?.voice_leading_notes}
             validation={model?.validation}
+            validationBadge={model?.validationBadge}
+            genreContext={model?.genre_context}
           />
           <ProductionPanel productionMarkdown={model?.production_steps} teachingNote={model?.teaching_note} />
         </div>

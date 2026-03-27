@@ -120,6 +120,32 @@
   margin: 0;
 }
 
+.prose {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #c4c4c4;
+}
+
+.prose p {
+  margin: 0 0 0.5em 0;
+}
+
+.prose p:last-child {
+  margin-bottom: 0;
+}
+
+.prose strong {
+  font-weight: 600;
+  color: #ececec;
+}
+
+.neutral {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: #7a7a7a;
+}
+
 .badgeRow {
   display: flex;
   align-items: center;

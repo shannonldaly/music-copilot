@@ -31,6 +31,65 @@
   color: #6a6a6a;
 }
 
+.dim {
+  color: #6a6a6a;
+}
+
+.drumSection {
+  flex: 1;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 140px;
+}
+
+.stepHeader {
+  display: grid;
+  grid-template-columns: 44px repeat(16, 1fr);
+  gap: 2px;
+  align-items: center;
+}
+
+.stepCorner {
+  width: 44px;
+}
+
+.stepIdx {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+  color: #5a5a5a;
+  text-align: center;
+}
+
+.drumRow {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 4px;
+  align-items: center;
+}
+
+.drumLabel {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: #8a8a8a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.drumSteps {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 2px;
+}
+
+.drumCell {
+  aspect-ratio: 1;
+  min-height: 18px;
+  border: 1px solid #222;
+  border-radius: 2px;
+}
+
 .clipRow {
   display: flex;
   gap: 4px;

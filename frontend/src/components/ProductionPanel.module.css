@@ -90,5 +90,17 @@
   padding-left: 10px;
   border-left: 3px solid #f5602a;
   margin: 0;
-  white-space: pre-wrap;
+}
+
+.teachBody p {
+  margin: 0 0 0.45em 0;
+}
+
+.teachBody p:last-child {
+  margin-bottom: 0;
+}
+
+.teachBody strong {
+  font-weight: 600;
+  color: #ececec;
 }

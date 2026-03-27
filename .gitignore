@@ -22,3 +22,15 @@ build/
 
 # OS
 .DS_Store
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+.vite/
+frontend/.vite/
+
+# Session data (generated at runtime)
+memory/sessions/
+
+# Claude Code local settings
+.claude/

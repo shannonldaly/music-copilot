@@ -1,6 +1,11 @@
 export function parseBpmFromText(text) {
   if (text == null) return null;
   if (typeof text === 'number' && !Number.isNaN(text)) return text;
+  if (Array.isArray(text) && text.length >= 2) {
+    const a = Number(text[0]);
+    const b = Number(text[1]);
+    if (!Number.isNaN(a) && !Number.isNaN(b)) return Math.round((a + b) / 2);
+  }
   const s = String(text);
   const m = s.match(/(\d+)\s*[-–]\s*(\d+)/);
   if (m) return Math.round((parseInt(m[1], 10) + parseInt(m[2], 10)) / 2);
@@ -26,9 +31,50 @@ export function normalizeGenerateResponse(data) {
   if (!data.success) return null;
 
   const prog = data.progressions?.[0];
+  const drum = data.drum_patterns?.[0];
+
+  if (drum && !prog) {
+    const bpm =
+      parseBpmFromText(drum.tempo_suggestion) ??
+      parseBpmFromText(drum.tempo_range) ??
+      110;
+
+    const genres = Array.isArray(drum.genres) ? drum.genres.join(', ') : drum.genres || '';
+
+    return {
+      mode: 'drums',
+      drumPattern: {
+        name: drum.name,
+        description: drum.description || '',
+        tempo_range: drum.tempo_range,
+        swing: drum.swing,
+        grid: drum.grid || {},
+        genres,
+        genresList: drum.genres || [],
+      },
+      bpm,
+      tempo_suggestion: `${bpm} BPM`,
+      genre_context: genres,
+      theory_explanation: drum.description || '',
+      chords: [],
+      key: null,
+      scale: '',
+      progression_name: drum.name,
+      voice_leading_notes: '—',
+      validation: null,
+      validationBadge: 'na_drums',
+      production_steps: data.production_steps || '',
+      teaching_note: data.teaching_note || '',
+      tokens_used: data.tokens_used,
+      cost_usd: data.cost_usd,
+      intent: data.intent,
+    };
+  }
+
   if (!prog) {
     return {
       empty: true,
+      mode: 'empty',
       teaching_note: data.teaching_note,
       production_steps: data.production_steps,
       tokens_used: data.tokens_used,
@@ -52,6 +98,8 @@ export function normalizeGenerateResponse(data) {
     : null;
 
   return {
+    mode: 'chords',
+    drumPattern: null,
     key: prog.key,
     scale: prog.scale || '',
     progression_name: prog.name || prog.numerals?.join('–') || '',
@@ -62,6 +110,7 @@ export function normalizeGenerateResponse(data) {
     theory_explanation: prog.description || '',
     voice_leading_notes: warnings || '—',
     validation: data.validation,
+    validationBadge: null,
     production_steps: data.production_steps || '',
     teaching_note: data.teaching_note || '',
     tokens_used: data.tokens_used,
@@ -70,20 +119,25 @@ export function normalizeGenerateResponse(data) {
   };
 }
 
+/**
+ * Collect ordered step lines from markdown; renumber 1..N so section restarts don't break the list.
+ */
 export function extractNumberedSteps(markdown) {
   if (!markdown) return [];
   const lines = markdown.split('\n');
-  const steps = [];
+  const raw = [];
   const re = /^(\d+)\.\s+(.+)$/;
   for (const line of lines) {
     const m = line.trim().match(re);
-    if (m) steps.push({ n: parseInt(m[1], 10), text: m[2] });
+    if (m) raw.push(m[2]);
   }
-  if (steps.length) return steps;
+  if (raw.length) {
+    return raw.map((text, i) => ({ n: i + 1, text }));
+  }
   const loose = markdown.split(/\n(?=\d+\.\s)/);
   for (const chunk of loose) {
     const m = chunk.trim().match(/^(\d+)\.\s+([\s\S]+)/);
-    if (m) steps.push({ n: parseInt(m[1], 10), text: m[2].trim() });
+    if (m) raw.push(m[2].trim());
   }
-  return steps;
+  return raw.map((text, i) => ({ n: i + 1, text }));
 }

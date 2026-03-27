@@ -1,4 +1,5 @@
 import { extractNumberedSteps } from '../utils/normalize';
+import { FormattedTeaching } from '../utils/markdownLite';
 import styles from './ProductionPanel.module.css';
 
 function fallbackLines(text) {
@@ -34,7 +35,7 @@ export default function ProductionPanel({ productionMarkdown, teachingNote }) {
 
       <div className={styles.teach}>
         <div className={styles.sectionLabel}>Teaching</div>
-        <div className={styles.teachBody}>{teachingNote || '—'}</div>
+        <FormattedTeaching className={styles.teachBody}>{teachingNote || '—'}</FormattedTeaching>
       </div>
     </section>
   );

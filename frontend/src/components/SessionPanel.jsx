@@ -1,4 +1,5 @@
 import { CHORD_BORDER_COLORS } from '../constants';
+import { buildDrumRows } from '../utils/drums';
 import { parseNoteToMidi, midiToRollRow } from '../utils/notes';
 import styles from './SessionPanel.module.css';
 
@@ -37,51 +38,97 @@ function buildRollLayout(chords) {
   return { minMidi, maxMidi, rows };
 }
 
-export default function SessionPanel({ chords, bpm, progressionName, keyName }) {
+export default function SessionPanel({ mode, chords, drumGrid, bpm, progressionName, keyName, genreContext }) {
   const { rows } = buildRollLayout(chords);
+  const isDrums = mode === 'drums';
+  const { rows: drumRows, stepIndices } = isDrums ? buildDrumRows(drumGrid) : { rows: [], stepIndices: [] };
 
   return (
     <section className={styles.panel}>
       <header className={styles.header}>
         <h2 className={styles.title}>Session View</h2>
         <span className={styles.meta}>
-          {keyName || '—'} {progressionName ? `· ${progressionName}` : ''}
+          {isDrums ? (
+            <>
+              <span className={styles.mono}>{progressionName || 'Drum pattern'}</span>
+              {genreContext ? <span className={styles.dim}> · {genreContext}</span> : null}
+            </>
+          ) : (
+            <>
+              {keyName || '—'} {progressionName ? `· ${progressionName}` : ''}
+            </>
+          )}
         </span>
       </header>
 
-      <div className={styles.clipRow}>
-        {(chords || []).slice(0, 8).map((c, i) => (
-          <div
-            key={`${c.name}-${i}`}
-            className={styles.clip}
-            style={{ borderTopColor: CHORD_BORDER_COLORS[i % CHORD_BORDER_COLORS.length] }}
-          >
-            <span className={styles.clipName}>{c.name}</span>
-            <span className={styles.clipSub}>{c.numeral}</span>
+      {isDrums ? (
+        <div className={styles.drumSection}>
+          <div className={styles.rollLabel}>16-step grid</div>
+          <div className={styles.stepHeader}>
+            <span className={styles.stepCorner} aria-hidden />
+            {stepIndices.map((s) => (
+              <span key={s} className={styles.stepIdx}>
+                {s + 1}
+              </span>
+            ))}
           </div>
-        ))}
-      </div>
-
-      <div className={styles.rollWrap}>
-        <div className={styles.rollLabel}>Piano roll</div>
-        <div className={styles.roll}>
-          {rows.map((row) => (
-            <div key={row.chordIdx} className={styles.chordColumn}>
-              {row.blocks.map((b) => (
-                <div
-                  key={`${b.midi}-${b.label}`}
-                  className={styles.noteBlock}
-                  style={{
-                    background: row.color,
-                    top: `${b.y * 100}%`,
-                  }}
-                  title={b.label}
-                />
-              ))}
+          {drumRows.map((row) => (
+            <div key={row.id} className={styles.drumRow}>
+              <span className={styles.drumLabel}>{row.label}</span>
+              <div className={styles.drumSteps}>
+                {stepIndices.map((step) => (
+                  <div
+                    key={step}
+                    className={styles.drumCell}
+                    style={{
+                      background: row.steps.has(step) ? row.color : '#1a1a1a',
+                      borderColor: row.steps.has(step) ? row.color : '#222',
+                    }}
+                    title={`${row.label} step ${step + 1}`}
+                  />
+                ))}
+              </div>
             </div>
           ))}
         </div>
-      </div>
+      ) : (
+        <>
+          <div className={styles.clipRow}>
+            {(chords || []).slice(0, 8).map((c, i) => (
+              <div
+                key={`${c.name}-${i}`}
+                className={styles.clip}
+                style={{ borderTopColor: CHORD_BORDER_COLORS[i % CHORD_BORDER_COLORS.length] }}
+              >
+                <span className={styles.clipName}>{c.name}</span>
+                <span className={styles.clipSub}>{c.numeral}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className={styles.rollWrap}>
+            <div className={styles.rollLabel}>Piano roll</div>
+            <div className={styles.roll}>
+              {rows.map((row) => (
+                <div key={row.chordIdx} className={styles.chordColumn}>
+                  {row.blocks.map((b) => (
+                    <div
+                      key={`${b.midi}-${b.label}`}
+                      className={styles.noteBlock}
+                      style={{
+                        background: row.color,
+                        top: `${b.y * 100}%`,
+                      }}
+                      title={b.label}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
       <div className={styles.footer}>
         <span className={styles.mono}>{bpm} BPM</span>
       </div>
