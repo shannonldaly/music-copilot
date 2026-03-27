@@ -1,0 +1,59 @@
+.menubar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  padding: 0 12px;
+  background: #1a1a1a;
+  border-bottom: 1px solid #222;
+  flex-shrink: 0;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.appName {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #e8e8e8;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.transportBtn {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 6px;
+  background: #161616;
+  border: 1px solid #222;
+  border-radius: 2px;
+  color: #f5602a;
+  cursor: pointer;
+}
+
+.transportBtn:hover {
+  background: #1a1a1a;
+}
+
+.mono {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: #9a9a9a;
+}

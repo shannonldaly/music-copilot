@@ -1,0 +1,47 @@
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  background: #111;
+  border-bottom: 1px solid #222;
+  flex-shrink: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: #7a7a7a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.led {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid #222;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.led_idle {
+  background: #3a3a3a;
+  border-color: #333;
+}
+
+.led_firing {
+  background: #f5602a;
+  border-color: #c94d22;
+}
+
+.led_done {
+  background: #2d6a3e;
+  border-color: #256334;
+}
