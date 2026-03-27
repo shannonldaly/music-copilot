@@ -262,37 +262,63 @@ Seven agents on every request is expensive. The Orchestrator enforces routing di
 
 ## Build Sequencing
 
-### Phase 0 — Foundation (Do This First, Before Any App Code)
+### Phase 0 — Foundation (Do This First, Before Any App Code) ✅ COMPLETE
 *Goal: The skeleton exists and every agent can communicate.*
 
-1. Set up project repo with clear folder structure:
+1. ✅ Set up project repo with clear folder structure:
    ```
    /agents          — one Python file per agent
    /docs            — the three grounding documents
    /validator       — music21 validation scripts
    /frontend        — React app
    /memory          — session JSON storage
+   /theory          — local music theory lookups (cost-efficient)
+   /utils           — token tracking, model config
    CLAUDE.md        — this file
    ```
-2. Install dependencies: `anthropic`, `music21`, `fastapi`, `uvicorn`
-3. Write the Orchestrator as a simple router — hardcode one intent type to start
-4. Write the Theory Agent with structured JSON output
-5. Write the Theory Validator Python script and confirm music21 catches a known error
-6. Confirm the Orchestrator → Theory Agent → Validator pipeline works end to end with a test prompt
+2. ✅ Install dependencies: `anthropic`, `music21`, `fastapi`, `uvicorn`
+3. ✅ Write the Orchestrator as a simple router (`agents/orchestrator.py`)
+4. ✅ Write the Theory module with structured output (`theory/` — scales, chords, progressions, drum patterns)
+5. ✅ Write the Theory Validator Python script (`validator/theory_validator.py`)
+6. ✅ Confirm the Orchestrator → Theory → Validator pipeline works end to end
 
-**Do not build the frontend yet. Do not build all agents at once. Confirm the core loop works first.**
+**Cost-efficient architecture**: Local lookups for theory data (20+ genre progressions, 18 drum patterns) with tiered model routing (Haiku for simple tasks, Sonnet for creative).
 
-### Phase 1 — Core Loop (First Working Version)
+### Phase 1 — Core Loop (First Working Version) ✅ COMPLETE
 *Goal: Type a prompt, get a validated chord progression with explanation and Ableton steps.*
 
-1. Add Production Agent
-2. Add Teaching Agent
-3. Add session memory (JSON read/write)
-4. Build minimal frontend: input box, three output panels (chords, Ableton steps, teaching note), thinking states for each agent
-5. Add Tone.js audio preview
-6. Add thumbs up/down feedback UI
+1. ✅ Add Production Agent (`agents/production_agent.py`)
+2. ✅ Add Teaching Agent (`agents/teaching_agent.py`)
+3. ✅ Add session memory (JSON read/write) (`memory/session.py`)
+4. ✅ Build minimal frontend: input box, three output panels (chords, Ableton steps, teaching note), thinking states for each agent
+5. ✅ Add Tone.js audio preview
+6. ✅ Add thumbs up/down feedback UI
 
 **Definition of done**: You can type "give me something melancholic, lo-fi, minor key" and receive a validated chord progression that plays in the browser, with Ableton steps and a teaching note — and it's saved to session history.
+
+**API Endpoints (FastAPI)** — `api/main.py`:
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check, returns status and version |
+| `/api/generate` | POST | Main generation endpoint (orchestrator → agents) |
+| `/api/session` | POST | Create new session with user profile |
+| `/api/session/{id}` | GET | Get session by ID |
+| `/api/session/{id}/history` | GET | Get session history with feedback |
+| `/api/feedback` | POST | Record thumbs_up/thumbs_down/regenerate |
+
+**Local Mode (No API Key Required)**:
+The `/api/generate` endpoint supports `use_api: false` which runs entirely locally:
+- Keyword-based intent detection (no LLM call)
+- Local theory lookups from `theory/genre_progressions.py` and `theory/drum_patterns.py`
+- Local production instructions from `generate_chord_instructions_local()` and `generate_drum_instructions_local()`
+- Local teaching notes from `generate_progression_explanation_local()` and `generate_rhythm_explanation_local()`
+- Zero API cost for development and testing
+
+**To run the API**:
+```bash
+uvicorn api.main:app --reload --port 8000
+```
+API docs available at: `http://localhost:8000/docs`
 
 ### Phase 2 — Polish & Demo-Readiness
 *Goal: Something you'd show an employer without apologizing for anything.*
@@ -347,5 +373,5 @@ Seven agents on every request is expensive. The Orchestrator enforces routing di
 
 ---
 
-*Last updated: Session 1 — Architecture & Planning*
+*Last updated: Phase 1 Complete — Production Agent, Teaching Agent, Session Memory, FastAPI Backend*
 *Next update trigger: Any agent spec change, any architectural decision, any new dependency added*
