@@ -132,7 +132,9 @@ If `passed: false`, the Validator returns the errors to the Theory Agent for cor
 ### 5. Sound Engineering Agent
 **Role**: Handles all mixing, mastering, EQ, compression, sidechain, spatial, and sound design questions for electronic music.
 
-**Grounded in**: `/docs/electronic_music_production.md` (Electronic Music Production: History, How-To, Best Practices & Sound Engineering)
+**Grounded in**:
+- `/docs/electronic_music_production.md` (Electronic Music Production: History, How-To, Best Practices & Sound Engineering)
+- `/docs/mixing_cheat_sheet.md` (Instrument-specific EQ, compression, and reverb reference)
 
 **Scope**:
 - Frequency spectrum decisions (what lives where, what to cut)
