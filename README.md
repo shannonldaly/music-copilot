@@ -2,6 +2,8 @@
 
 An AI-powered music production assistant built as a multi-agent system. The core thesis: be the "Lovable for music production" — a tool that understands both music theory and DAW workflows, translates natural language into validated chord progressions and step-by-step Ableton instructions, and teaches you *why* things work as it helps you build them. This is not Suno. It doesn't generate music for you. It amplifies your ability to generate music yourself.
 
+Music Co-Pilot is not a song generator. It's the difference between a GPS that drives the car and one that tells you where to turn. You're always driving. Tools like Suno replace the composer. Co-Pilot amplifies them — removing every technical barrier between creative intent and output while keeping every creative decision in human hands. The result is music you actually made, and a craft you actually built.
+
 ![Screenshot](docs/screenshot-placeholder.png)
 
 ---

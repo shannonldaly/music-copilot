@@ -13,6 +13,98 @@ This is simultaneously:
 
 ---
 
+## How Claude Code Should Operate (Agent Management Protocol)
+
+### Standing Rules — Apply to Every Session
+1. **No task starts without a definition of done.** If the task brief below
+doesn't define what finished looks like, ask before writing any code.
+2. **One thing at a time.** Complete and verify each component before
+starting the next. Never work on multiple components in parallel.
+3. **Keep deliverables small.** One agent, one file, one feature at a time.
+The smaller the output, the easier to verify correctly.
+4. **Confirm before proceeding.** After each component is built,
+report what was done and wait for confirmation before moving forward.
+5. **Verify before accepting.** Tests passing is not definition of done.
+Report exactly what was built, what files were changed, and what
+the user should check manually.
+
+---
+
+### Task Brief Template (Fill This In At The Start of Every Session)
+When Shannon starts a Claude Code session, ask her to confirm or fill in:
+
+**Goal**: One sentence — what exists when this session is done?
+
+**Constraints**: Libraries to use, files not to touch, performance limits.
+
+**Non-goals**: What NOT to do, even if it seems helpful.
+- Don't refactor working code unless explicitly asked
+- Don't add new dependencies without asking first
+- Don't modify CLAUDE.md without being asked
+- Don't run the frontend — Cursor handles that on port 5173
+
+**Definition of Done**: How will we verify this worked?
+- What tests should pass?
+- What should Shannon see in the browser?
+- What files should exist that didn't before?
+
+**Escalation Triggers**: Stop and ask Shannon instead of proceeding if:
+- The task requires touching more than 3 files not mentioned in the brief
+- A non-trivial architectural decision needs to be made
+- Something is broken that wasn't broken before
+- The task is taking more steps than expected
+- Any user data, API keys, or security-related code is involved
+
+---
+
+### Ownership Map — What Claude Code Can Decide Alone vs. What Needs Shannon
+
+**Claude Code owns (decide and execute without asking):**
+- Writing new Python agent files following existing patterns
+- Writing new React components following existing CSS module patterns
+- Adding new API endpoints following the existing FastAPI pattern
+- Writing and running tests
+- Installing pre-approved packages (anthropic, music21, fastapi,
+  uvicorn, tone.js, axios, react)
+- Git commits with descriptive messages
+- Fixing bugs in code it just wrote in the same session
+
+**Claude Code must ask Shannon first:**
+- Any new dependency not in the approved list above
+- Changes to the agent JSON contract structure (breaks frontend)
+- Changes to session memory schema (breaks existing sessions)
+- Any change to CLAUDE.md
+- Deleting any files
+- Changes to the folder structure defined in CLAUDE.md
+- Anything that affects the Ableton MCP integration path
+
+**Always stop and escalate (never proceed):**
+- Anything involving API keys or credentials
+- Anything involving user data or privacy
+- Any decision that can't easily be undone
+- Any change to git history or branch structure
+
+---
+
+### Delegation Level for This Project
+Currently operating at **Level 2** — Claude Code executes tasks and
+reports back for verification before moving to the next task.
+
+Move to Level 3 (execute a full phase autonomously) only after:
+- Two consecutive phases completed without requiring rollback
+- Shannon explicitly says "run Phase X autonomously"
+
+---
+
+### Session Startup Checklist
+At the start of every Claude Code session:
+1. Read CLAUDE.md fully before doing anything
+2. Run `git status` and report any uncommitted changes
+3. Confirm which Phase is next based on the build sequencing section
+4. Ask Shannon to confirm the Task Brief before writing any code
+
+---
+
 ## The Agent Team
 
 There are 7 agents. Every agent has a defined role, grounding context, and clear handoff protocol. The Orchestrator runs first on every request and decides which agents to invoke.
