@@ -23,6 +23,40 @@
   color: #e8e8e8;
 }
 
+.songName {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: #6a6a6a;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.songName::before {
+  content: '·';
+  margin: 0 10px 0 2px;
+  color: #3a3a3a;
+}
+
+.newSess {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  padding: 4px 8px;
+  background: #161616;
+  border: 1px solid #222;
+  border-radius: 2px;
+  color: #9a9a9a;
+  cursor: pointer;
+}
+
+.newSess:hover {
+  color: #f5602a;
+  border-color: #333;
+}
+
 .right {
   display: flex;
   align-items: center;
@@ -48,8 +82,13 @@
   cursor: pointer;
 }
 
-.transportBtn:hover {
+.transportBtn:hover:not(:disabled) {
   background: #1a1a1a;
+}
+
+.transportBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .mono {

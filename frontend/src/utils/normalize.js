@@ -30,11 +30,12 @@ export function normalizeGenerateResponse(data) {
 
   if (!data.success) return null;
 
-  const prog = data.progressions?.[0];
+  const prog = data.progression || data.progressions?.[0];
   const drum = data.drum_patterns?.[0];
 
   if (drum && !prog) {
     const bpm =
+      (typeof data.bpm === 'number' ? data.bpm : null) ??
       parseBpmFromText(drum.tempo_suggestion) ??
       parseBpmFromText(drum.tempo_range) ??
       110;
@@ -54,12 +55,12 @@ export function normalizeGenerateResponse(data) {
       },
       bpm,
       tempo_suggestion: `${bpm} BPM`,
-      genre_context: genres,
+      genre_context: data.genre_context ?? genres,
       theory_explanation: drum.description || '',
       chords: [],
-      key: null,
+      key: data.key ?? null,
       scale: '',
-      progression_name: drum.name,
+      progression_name: data.progression_name ?? drum.name,
       voice_leading_notes: '—',
       validation: null,
       validationBadge: 'na_drums',
@@ -68,6 +69,8 @@ export function normalizeGenerateResponse(data) {
       tokens_used: data.tokens_used,
       cost_usd: data.cost_usd,
       intent: data.intent,
+      alternatives: data.alternatives ?? [],
+      melody_direction: data.melody_direction ?? null,
     };
   }
 
@@ -79,6 +82,8 @@ export function normalizeGenerateResponse(data) {
       production_steps: data.production_steps,
       tokens_used: data.tokens_used,
       cost_usd: data.cost_usd,
+      alternatives: data.alternatives ?? [],
+      melody_direction: data.melody_direction ?? null,
     };
   }
 
@@ -89,6 +94,7 @@ export function normalizeGenerateResponse(data) {
   }));
 
   const bpm =
+    (typeof data.bpm === 'number' ? data.bpm : null) ??
     parseBpmFromText(prog.tempo_suggestion) ??
     parseBpmFromText(prog.tempo_range) ??
     85;
@@ -97,16 +103,21 @@ export function normalizeGenerateResponse(data) {
     ? data.validation.warnings.join(' ')
     : null;
 
+  const genre_context =
+    data.genre_context ??
+    (Array.isArray(prog.genres) ? prog.genres.join(', ') : prog.genres || '');
+
   return {
     mode: 'chords',
     drumPattern: null,
-    key: prog.key,
+    key: data.key ?? prog.key,
     scale: prog.scale || '',
-    progression_name: prog.name || prog.numerals?.join('–') || '',
+    progression_name:
+      data.progression_name ?? prog.name ?? prog.numerals?.join('–') ?? '',
     chords,
     tempo_suggestion: `${bpm} BPM`,
     bpm,
-    genre_context: Array.isArray(prog.genres) ? prog.genres.join(', ') : prog.genres || '',
+    genre_context,
     theory_explanation: prog.description || '',
     voice_leading_notes: warnings || '—',
     validation: data.validation,
@@ -116,6 +127,8 @@ export function normalizeGenerateResponse(data) {
     tokens_used: data.tokens_used,
     cost_usd: data.cost_usd,
     intent: data.intent,
+    alternatives: data.alternatives ?? [],
+    melody_direction: data.melody_direction ?? null,
   };
 }
 

@@ -1,0 +1,124 @@
+@keyframes melodyPanelIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+    filter: brightness(0.85);
+  }
+  55% {
+    opacity: 1;
+    filter: brightness(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes accentPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 96, 42, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 14px 2px rgba(245, 96, 42, 0.2);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 96, 42, 0);
+  }
+}
+
+.panel {
+  margin: 0 8px 10px;
+  padding: 0;
+  background: linear-gradient(165deg, #1c1410 0%, #15151a 42%, #121018 100%);
+  border: 1px solid #2a2420;
+  border-radius: 2px;
+  font-family: 'IBM Plex Mono', monospace;
+  box-shadow:
+    0 0 0 1px rgba(245, 96, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.panelIntro {
+  animation: melodyPanelIn 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.panelIntro .accentBar {
+  animation: accentPulse 0.9s ease-out 0.15s both;
+}
+
+.head {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid rgba(245, 96, 42, 0.22);
+}
+
+.accentBar {
+  width: 4px;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #f5602a 0%, #c94d22 100%);
+}
+
+.headText {
+  flex: 1;
+  padding: 10px 12px 10px 10px;
+}
+
+.kicker {
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(245, 96, 42, 0.85);
+  margin-bottom: 4px;
+}
+
+.title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f0ece8;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.body {
+  padding: 12px 12px 12px 14px;
+}
+
+.row {
+  margin-bottom: 10px;
+}
+
+.row:last-child {
+  margin-bottom: 0;
+}
+
+.k {
+  display: block;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #7a726c;
+  margin-bottom: 3px;
+}
+
+.v {
+  display: block;
+  font-size: 11px;
+  color: #e2ddd8;
+  line-height: 1.5;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.sub {
+  display: block;
+  font-size: 10px;
+  color: #8a827c;
+  margin-top: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+}

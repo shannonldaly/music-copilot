@@ -357,6 +357,18 @@ class TheoryValidator:
 
         return issues
 
+    @staticmethod
+    def _normalize_pitch_name(name: str) -> str:
+        """Normalize a pitch name for comparison.
+
+        Handles music21's convention (B- for Bb) and our convention (Bb).
+        Converts everything to pitch-space comparison using music21.
+        """
+        try:
+            return pitch.Pitch(name).ps
+        except Exception:
+            return name
+
     def _check_chord_name_match(
         self,
         m21_chord: chord.Chord,
@@ -367,37 +379,52 @@ class TheoryValidator:
         """Check if the notes match the stated chord name."""
         issues = []
 
-        # Get pitch classes from the chord
-        actual_pitches = set(p.name for p in m21_chord.pitches)
+        # Compare using pitch-space values (float MIDI) to avoid enharmonic mismatches
+        # e.g., Bb and B- and A# all map to the same pitch-space value
+        actual_ps = set(round(p.ps % 12, 2) for p in m21_chord.pitches)
 
-        # Parse the stated chord name to get expected pitches
         try:
             expected_pitches = self._get_expected_pitches(stated_name)
+            if not expected_pitches:
+                return issues
 
-            if expected_pitches and actual_pitches != expected_pitches:
-                missing = expected_pitches - actual_pitches
-                extra = actual_pitches - expected_pitches
+            expected_ps = set()
+            expected_name_map = {}
+            for name in expected_pitches:
+                try:
+                    ps_val = round(pitch.Pitch(name).ps % 12, 2)
+                    expected_ps.add(ps_val)
+                    expected_name_map[ps_val] = name
+                except Exception:
+                    pass
 
-                if missing:
+            if expected_ps and actual_ps != expected_ps:
+                missing_ps = expected_ps - actual_ps
+                extra_ps = actual_ps - expected_ps
+
+                if missing_ps:
+                    missing_names = {expected_name_map.get(ps, f"pc{ps}") for ps in missing_ps}
                     issues.append(ValidationIssue(
                         severity=ValidationSeverity.ERROR,
                         code="MISSING_CHORD_TONE",
-                        message=f"Chord '{stated_name}' is missing notes: {missing}",
+                        message=f"Chord '{stated_name}' is missing notes: {missing_names}",
                         location=location,
-                        suggestion=f"Add {missing} to complete the chord",
+                        suggestion=f"Add {missing_names} to complete the chord",
                     ))
 
-                if extra:
+                if extra_ps:
+                    # Map extra pitch-space values back to actual names
+                    actual_name_map = {round(p.ps % 12, 2): p.name for p in m21_chord.pitches}
+                    extra_names = {actual_name_map.get(ps, f"pc{ps}") for ps in extra_ps}
                     issues.append(ValidationIssue(
                         severity=ValidationSeverity.WARNING,
                         code="EXTRA_CHORD_TONE",
-                        message=f"Chord '{stated_name}' has unexpected notes: {extra}",
+                        message=f"Chord '{stated_name}' has unexpected notes: {extra_names}",
                         location=location,
                         suggestion="These may be extensions or voice leading tones",
                     ))
 
         except Exception:
-            # Can't parse chord name, skip this check
             pass
 
         return issues

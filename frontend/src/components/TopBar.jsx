@@ -1,17 +1,26 @@
 import styles from './TopBar.module.css';
 
 export default function TopBar({
+  songName,
   bpm,
   cpuPercent,
   tokenCostUsd,
   isPlaying,
   onPlayToggle,
   onStop,
+  onNewSession,
+  audioLoading,
 }) {
   return (
     <header className={styles.menubar}>
       <div className={styles.left}>
         <span className={styles.appName}>Co-Pilot</span>
+        {songName ? <span className={styles.songName}>{songName}</span> : null}
+        {onNewSession ? (
+          <button type="button" className={styles.newSess} onClick={onNewSession}>
+            New Session
+          </button>
+        ) : null}
       </div>
       <div className={styles.right}>
         <div className={styles.transport}>
@@ -19,6 +28,7 @@ export default function TopBar({
             type="button"
             className={styles.transportBtn}
             onClick={onPlayToggle}
+            disabled={audioLoading}
             aria-label={isPlaying ? 'Pause preview' : 'Play preview'}
           >
             {isPlaying ? '❚❚' : '▶'}

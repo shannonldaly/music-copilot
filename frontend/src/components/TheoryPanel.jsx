@@ -1,8 +1,11 @@
 import { CHORD_BORDER_COLORS } from '../constants';
 import { FormattedTeaching } from '../utils/markdownLite';
+import AlsoTryList from './AlsoTryList';
+import MelodyDirectionPanel from './MelodyDirectionPanel';
 import styles from './TheoryPanel.module.css';
 
 export default function TheoryPanel({
+  sessionId,
   mode,
   chords,
   keyName,
@@ -14,6 +17,11 @@ export default function TheoryPanel({
   validationBadge,
   drumPattern,
   genreContext,
+  alsoTryAlternatives,
+  onAlsoTryPick,
+  expandLoading,
+  expandError,
+  melodyDirection,
 }) {
   const list = (chords || []).slice(0, 8);
   const isDrums = mode === 'drums';
@@ -38,6 +46,8 @@ export default function TheoryPanel({
         </div>
       </header>
 
+      {expandError ? <div className={styles.expandErr}>{expandError}</div> : null}
+
       {!isDrums ? (
         <div className={styles.cards}>
           {list.map((c, i) => (
@@ -58,6 +68,25 @@ export default function TheoryPanel({
             </div>
           ))}
         </div>
+      ) : null}
+
+      {!isDrums && (alsoTryAlternatives?.length ?? 0) > 0 ? (
+        <div className={styles.alsoTryShell}>
+          <AlsoTryList
+            alternatives={alsoTryAlternatives}
+            onPick={onAlsoTryPick}
+            disabled={expandLoading}
+          />
+        </div>
+      ) : null}
+
+      {!isDrums && melodyDirection ? (
+        <MelodyDirectionPanel
+          key={sessionId ? `${sessionId}-melody` : 'melody'}
+          data={melodyDirection}
+          animateIntro={melodyIntroActive}
+          onIntroComplete={onMelodyIntroComplete}
+        />
       ) : null}
 
       <div className={styles.block}>

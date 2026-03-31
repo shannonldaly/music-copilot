@@ -18,6 +18,13 @@ from .teaching_agent import (
     generate_progression_explanation_local,
     generate_rhythm_explanation_local,
 )
+from .theory_agent import (
+    TheoryAgent,
+    generate_theory_output_local,
+)
+from .sound_engineering_agent import (
+    SoundEngineeringAgent,
+)
 
 __all__ = [
     # Orchestrator
@@ -35,4 +42,9 @@ __all__ = [
     'TeachingAgent',
     'generate_progression_explanation_local',
     'generate_rhythm_explanation_local',
+    # Theory Agent
+    'TheoryAgent',
+    'generate_theory_output_local',
+    # Sound Engineering Agent
+    'SoundEngineeringAgent',
 ]

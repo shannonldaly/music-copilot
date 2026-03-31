@@ -133,7 +133,13 @@ There are 7 agents. Every agent has a defined role, grounding context, and clear
 ### 2. Theory Agent
 **Role**: Generates musically accurate chord progressions, explains the harmony behind them, and outputs structured note data for validation.
 
-**Grounded in**: `/docs/music_theory.md` (Music Composition, Music Theory Best Practices & Chord Progressions Across All Genres)
+**Implemented**: `agents/theory_agent.py` — supports both API mode (LLM-powered) and local mode (deterministic lookup, zero cost).
+
+**Grounded in**:
+- `/docs/music_theory.md` (Music Composition, Music Theory Best Practices & Chord Progressions Across All Genres)
+- `/docs/artist_dna.md` (for `melody_direction.artist_reference` field)
+- `/docs/advanced_harmony.md` (extended harmonic concepts)
+- `/docs/famous_progressions.md` (curated progression reference)
 
 **Output format** (always structured, never freeform):
 ```json
@@ -149,15 +155,41 @@ There are 7 agents. Every agent has a defined role, grounding context, and clear
   ],
   "tempo_suggestion": "85 BPM",
   "genre_context": "melancholic lo-fi / trap",
-  "theory_explanation": "This progression stays in natural minor and avoids resolution — the VII chord never quite settles, which creates the looping, unresolved feeling common in lo-fi and trap production.",
-  "voice_leading_notes": "Smooth voice leading between Am and F — C is a common tone, A moves down a semitone to A, E moves down a step to F. Minimal movement."
+  "theory_explanation": "...",
+  "voice_leading_notes": "...",
+  "alternatives": [
+    { "label": "darker", "progression_name": "i – VI – iv – VII", "chords": ["Am", "F", "Dm", "G"], "character": "Minor lo-fi with melancholic loop." },
+    { "label": "more_movement", "progression_name": "i – VI – III – VII", "chords": ["Am", "F", "C", "G"], "character": "Endless loop that never resolves." },
+    { "label": "unexpected", "progression_name": "i – VII – VI – V", "chords": ["Am", "G", "F", "E"], "character": "Descending bass line, Spanish/Flamenco flavor." }
+  ],
+  "melody_direction": {
+    "start_note": "E4",
+    "start_note_context": "The 5th of A minor — stable, neutral launching point",
+    "contour": "descending with brief upward reaches",
+    "rhythm_feel": "behind the beat, syncopated, lazy triplet feel",
+    "avoid_on_strong_beats": ["D4"],
+    "avoid_context": "the 4th degree creates unresolved tension on strong beats",
+    "suggested_range": "A3 to E5",
+    "artist_reference": "Massive Attack — sparse, Phrygian-influenced melodies..."
+  }
 }
 ```
+
+**Alternatives contract**:
+- Lighter-weight: chord names only, no note-level data
+- Always 3 alternatives labeled: `darker`, `more_movement`, `unexpected`
+- All alternatives stay in the same key and mode as the primary
+- Alternatives bypass the Theory Validator
+- When a user swaps an alternative to primary, the frontend calls `POST /api/progression/expand` to get full note-level data + validation
+
+**Melody direction contract**:
+- `artist_reference` pulls from `/docs/artist_dna.md` grounding context
+- `suggested_range` defaults to a singable mid range (e.g., A3–E5)
 
 **Critical rules**:
 - Always output exact note names with octave numbers (e.g., C4, not just C)
 - Never suggest notes outside the stated scale without explicitly flagging it as a borrowed chord
-- Always pass output to Theory Validator before it reaches the user
+- Always pass primary output to Theory Validator before it reaches the user
 - If the user requests something that has no musically coherent answer (e.g., contradictory constraints), return an error with an explanation, not a hallucinated answer
 
 ---
@@ -224,9 +256,13 @@ If `passed: false`, the Validator returns the errors to the Theory Agent for cor
 ### 5. Sound Engineering Agent
 **Role**: Handles all mixing, mastering, EQ, compression, sidechain, spatial, and sound design questions for electronic music.
 
+**Implemented**: `agents/sound_engineering_agent.py` — selectively loads relevant grounding context based on question keywords.
+
 **Grounded in**:
 - `/docs/electronic_music_production.md` (Electronic Music Production: History, How-To, Best Practices & Sound Engineering)
 - `/docs/mixing_cheat_sheet.md` (Instrument-specific EQ, compression, and reverb reference)
+- `/docs/automation_playbook.md` (When and what to automate by song section — loaded for automation/arrangement questions)
+- `/docs/artist_dna.md` (Artist-specific production techniques and signatures — loaded for style/reference questions)
 
 **Scope**:
 - Frequency spectrum decisions (what lives where, what to cut)
@@ -360,7 +396,8 @@ Seven agents on every request is expensive. The Orchestrator enforces routing di
 1. ✅ Set up project repo with clear folder structure:
    ```
    /agents          — one Python file per agent
-   /docs            — the three grounding documents
+   /api             — FastAPI backend + helpers
+   /docs            — grounding documents (8 files — see below)
    /validator       — music21 validation scripts
    /frontend        — React app
    /memory          — session JSON storage
@@ -368,6 +405,16 @@ Seven agents on every request is expensive. The Orchestrator enforces routing di
    /utils           — token tracking, model config
    CLAUDE.md        — this file
    ```
+   **Grounding documents in `/docs`**:
+   - `music_theory.md` — composition, theory best practices, chord progressions
+   - `ableton_guide.md` — Ableton Live tutorial & troubleshooting
+   - `electronic_music_production.md` — history, how-to, best practices
+   - `mixing_cheat_sheet.md` — instrument-specific EQ, compression, reverb
+   - `artist_dna.md` — 12 artist production profiles, signature techniques
+   - `advanced_harmony.md` — extended harmonic concepts
+   - `drum_patterns_extended.md` — expanded drum pattern reference
+   - `famous_progressions.md` — curated famous progression reference
+   - `automation_playbook.md` — when/what to automate by song section
 2. ✅ Install dependencies: `anthropic`, `music21`, `fastapi`, `uvicorn`
 3. ✅ Write the Orchestrator as a simple router (`agents/orchestrator.py`)
 4. ✅ Write the Theory module with structured output (`theory/` — scales, chords, progressions, drum patterns)
@@ -381,22 +428,39 @@ Seven agents on every request is expensive. The Orchestrator enforces routing di
 
 1. ✅ Add Production Agent (`agents/production_agent.py`)
 2. ✅ Add Teaching Agent (`agents/teaching_agent.py`)
-3. ✅ Add session memory (JSON read/write) (`memory/session.py`)
-4. ✅ Build minimal frontend: input box, three output panels (chords, Ableton steps, teaching note), thinking states for each agent
-5. ✅ Add Tone.js audio preview
-6. ✅ Add thumbs up/down feedback UI
+3. ✅ Add Theory Agent (`agents/theory_agent.py`) — with alternatives array and melody_direction
+4. ✅ Add Sound Engineering Agent (`agents/sound_engineering_agent.py`) — grounded in automation_playbook.md + artist_dna.md
+5. ✅ Add session memory (JSON read/write) (`memory/session.py`)
+6. ✅ Build minimal frontend: input box, three output panels (chords, Ableton steps, teaching note), thinking states for each agent
+7. ✅ Add Tone.js audio preview
+8. ✅ Add thumbs up/down feedback UI
 
-**Definition of done**: You can type "give me something melancholic, lo-fi, minor key" and receive a validated chord progression that plays in the browser, with Ableton steps and a teaching note — and it's saved to session history.
+**Definition of done**: You can type "give me something melancholic, lo-fi, minor key" and receive a validated chord progression that plays in the browser, with Ableton steps and a teaching note — and it's saved to session history. The response also includes three alternative progressions (darker, more movement, unexpected) and a melody direction object.
 
 **API Endpoints (FastAPI)** — `api/main.py`:
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/health` | GET | Health check, returns status and version |
-| `/api/generate` | POST | Main generation endpoint (orchestrator → agents) |
+| `/api/generate` | POST | Main generation endpoint — returns progressions, alternatives, melody_direction, production steps, teaching note |
+| `/api/progression/expand` | POST | Expand a lightweight alternative to full note-level data + validation |
 | `/api/session` | POST | Create new session with user profile |
 | `/api/session/{id}` | GET | Get session by ID |
 | `/api/session/{id}/history` | GET | Get session history with feedback |
-| `/api/feedback` | POST | Record thumbs_up/thumbs_down/regenerate |
+| `/api/feedback` | POST | Record thumbs_up/thumbs_down/regenerate/progression_swap |
+| `/api/project` | POST | Update project context (key, BPM, genre) |
+| `/api/sessions` | GET | List all sessions |
+
+**`/api/generate` response contract** (key fields):
+- `progressions` — array of full note-level progression data
+- `alternatives` — 3 lighter-weight objects: `{label, progression_name, chords (names only), character}`
+- `melody_direction` — `{start_note, start_note_context, contour, rhythm_feel, avoid_on_strong_beats, avoid_context, suggested_range, artist_reference}`
+- `production_steps` — markdown Ableton instructions
+- `teaching_note` — theory explanation
+- `validation` — Theory Validator result for primary progression
+
+**`/api/progression/expand` contract**:
+- Request: `{chords: ["Am", "F", "Dm", "G"], key: "A minor", progression_name: "i – VI – iv – VII"}`
+- Response: full note-level chord data + Theory Validator result
 
 **Local Mode (No API Key Required)**:
 The `/api/generate` endpoint supports `use_api: false` which runs entirely locally:
@@ -404,6 +468,7 @@ The `/api/generate` endpoint supports `use_api: false` which runs entirely local
 - Local theory lookups from `theory/genre_progressions.py` and `theory/drum_patterns.py`
 - Local production instructions from `generate_chord_instructions_local()` and `generate_drum_instructions_local()`
 - Local teaching notes from `generate_progression_explanation_local()` and `generate_rhythm_explanation_local()`
+- Local alternatives + melody direction from `generate_theory_output_local()`
 - Zero API cost for development and testing
 
 **To run the API**:
@@ -412,12 +477,12 @@ uvicorn api.main:app --reload --port 8000
 ```
 API docs available at: `http://localhost:8000/docs`
 
-### Phase 2 — Polish & Demo-Readiness
+### Phase 2 — Polish & Demo-Readiness 🔧 IN PROGRESS
 *Goal: Something you'd show an employer without apologizing for anything.*
 
-1. UX Designer Agent reviews and overhauls the frontend
+1. 🔧 Frontend overhaul — session modal, progress sidebar, Also Try interactive progressions, melody direction panel
 2. Add clarification loop for ambiguous input
-3. Add Sound Engineering Agent to the routing
+3. ✅ Add Sound Engineering Agent to the routing (`agents/sound_engineering_agent.py`)
 4. Refine Teaching Agent calibration based on actual use
 5. Add cost logging dashboard (dev-only)
 6. Record a 60-second demo video
@@ -465,5 +530,5 @@ API docs available at: `http://localhost:8000/docs`
 
 ---
 
-*Last updated: Phase 1 Complete — Production Agent, Teaching Agent, Session Memory, FastAPI Backend*
+*Last updated: 2026-03-31 — Phase 2 in progress. Added Theory Agent (alternatives + melody_direction), Sound Engineering Agent (grounded in automation_playbook.md + artist_dna.md), POST /api/progression/expand endpoint, 5 new grounding docs, Agent Management Protocol section.*
 *Next update trigger: Any agent spec change, any architectural decision, any new dependency added*

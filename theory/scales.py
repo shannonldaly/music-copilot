@@ -7,7 +7,7 @@ This is deterministic — no LLM needed.
 
 from dataclasses import dataclass
 from typing import List
-from .core import Note, transpose, NOTE_NAMES
+from .core import Note, transpose, spell_note_for_interval, NOTE_NAMES, LETTER_NAMES, LETTER_PITCH_CLASS
 
 # Scale patterns as semitones from root
 # Format: list of semitones for each scale degree
@@ -60,9 +60,22 @@ class Scale:
         return SCALE_PATTERNS[self.pattern_name]
 
     def get_notes(self, octave: int = 4) -> List[Note]:
-        """Get all notes in the scale starting at given octave."""
-        root_note = Note(name=self.root, octave=octave)
-        return [transpose(root_note, interval) for interval in self.intervals]
+        """Get all notes in the scale starting at given octave.
+
+        Uses letter-name arithmetic so Bb minor gives Bb,C,Db,Eb,F,Gb,Ab
+        and F# minor gives F#,G#,A,B,C#,D,E (correct enharmonic spelling).
+        """
+        notes = []
+        for i, semitones in enumerate(self.intervals):
+            # For 7-note scales, each degree is one letter name apart.
+            # For pentatonic/blues, use chord-interval letter offsets as fallback.
+            if len(self.intervals) == 7:
+                # Standard 7-note scale: degree i uses letter offset i
+                note = _spell_scale_note(self.root, octave, semitones, letter_offset=i)
+            else:
+                note = spell_note_for_interval(self.root, octave, semitones)
+            notes.append(note)
+        return notes
 
     def get_note_names(self) -> List[str]:
         """Get just the note names (no octave)."""
@@ -84,6 +97,42 @@ class Scale:
         if normalized in scale_notes:
             return scale_notes.index(normalized) + 1
         return 0
+
+
+def _spell_scale_note(root_name: str, root_octave: int, semitones: int, letter_offset: int) -> Note:
+    """Spell a scale note with the correct letter name for its degree.
+
+    In a 7-note scale, degree 0 is the root (letter_offset=0),
+    degree 1 is 1 letter up, degree 2 is 2 letters up, etc.
+    """
+    from .core import _parse_root_letter
+
+    root_letter, root_acc = _parse_root_letter(root_name)
+    root_letter_idx = LETTER_NAMES.index(root_letter)
+
+    target_letter_idx = (root_letter_idx + letter_offset) % 7
+    target_letter = LETTER_NAMES[target_letter_idx]
+    octave_offset = (root_letter_idx + letter_offset) // 7
+
+    root_natural_pc = LETTER_PITCH_CLASS[root_letter]
+    target_natural_pc = LETTER_PITCH_CLASS[target_letter]
+    target_actual_pc = (root_natural_pc + root_acc + semitones) % 12
+
+    acc_needed = (target_actual_pc - target_natural_pc) % 12
+    if acc_needed > 2:
+        acc_needed -= 12
+
+    if acc_needed > 0:
+        target_name = target_letter + '#' * acc_needed
+    elif acc_needed < 0:
+        target_name = target_letter + 'b' * (-acc_needed)
+    else:
+        target_name = target_letter
+
+    note = Note.__new__(Note)
+    note.name = target_name
+    note.octave = root_octave + octave_offset
+    return note
 
 
 def get_scale_notes(root: str, scale_type: str, octave: int = 4) -> List[Note]:

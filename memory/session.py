@@ -49,7 +49,8 @@ class HistoryEntry:
     request: str
     intent_type: str
     output: Dict[str, Any]
-    feedback: Optional[str] = None  # "thumbs_up", "thumbs_down", "regenerate", None
+    feedback: Optional[str] = None  # "thumbs_up", "thumbs_down", "regenerate", "progression_swap", None
+    feedback_label: Optional[str] = None  # e.g. Also Try label when feedback is progression_swap
 
 
 @dataclass
@@ -61,6 +62,7 @@ class Session:
     user_profile: UserProfile
     current_project: ProjectContext
     history: List[HistoryEntry] = field(default_factory=list)
+    session_mode: Optional[str] = None  # chords | drums | mixing | full
 
     def to_dict(self) -> Dict:
         """Convert to dictionary for JSON serialization."""
@@ -71,18 +73,25 @@ class Session:
             "user_profile": asdict(self.user_profile),
             "current_project": asdict(self.current_project),
             "history": [asdict(h) for h in self.history],
+            "session_mode": self.session_mode,
         }
 
     @classmethod
     def from_dict(cls, data: Dict) -> "Session":
         """Create from dictionary."""
+        hist = []
+        for h in data.get("history", []):
+            hd = dict(h)
+            hd.setdefault("feedback_label", None)
+            hist.append(HistoryEntry(**hd))
         return cls(
             session_id=data["session_id"],
             created_at=data["created_at"],
             updated_at=data["updated_at"],
             user_profile=UserProfile(**data.get("user_profile", {})),
             current_project=ProjectContext(**data.get("current_project", {})),
-            history=[HistoryEntry(**h) for h in data.get("history", [])],
+            history=hist,
+            session_mode=data.get("session_mode"),
         )
 
 
@@ -118,6 +127,7 @@ class SessionManager:
         self,
         user_profile: Optional[UserProfile] = None,
         project_context: Optional[ProjectContext] = None,
+        session_mode: Optional[str] = None,
     ) -> Session:
         """Create a new session."""
         now = datetime.now().isoformat()
@@ -127,6 +137,7 @@ class SessionManager:
             updated_at=now,
             user_profile=user_profile or UserProfile(),
             current_project=project_context or ProjectContext(),
+            session_mode=session_mode,
         )
         self.save_session(session)
         return session
@@ -195,11 +206,13 @@ class SessionManager:
         self,
         session: Session,
         entry_index: int,
-        feedback: str,  # "thumbs_up", "thumbs_down", "regenerate"
+        feedback: str,  # "thumbs_up", "thumbs_down", "regenerate", "progression_swap"
+        feedback_label: Optional[str] = None,
     ) -> bool:
         """Record feedback on a history entry."""
         try:
             session.history[entry_index].feedback = feedback
+            session.history[entry_index].feedback_label = feedback_label
             self.save_session(session)
 
             # Update user profile based on feedback patterns

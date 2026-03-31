@@ -4,6 +4,7 @@ FastAPI Backend — Music Co-Pilot API
 Endpoints:
 - POST /api/generate - Main generation endpoint (orchestrator → agents)
 - POST /api/session - Create new session
+- PATCH /api/session/{id} - Update session (e.g. song_name)
 - GET /api/session/{id} - Get session
 - POST /api/feedback - Record feedback on output
 - GET /api/health - Health check
@@ -18,12 +19,14 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from api.progression_utils import expand_chords_from_names, parse_bpm_from_tempo
 
 from agents.orchestrator import Orchestrator, IntentType
 from agents.production_agent import (
@@ -36,7 +39,8 @@ from agents.teaching_agent import (
     generate_progression_explanation_local,
     generate_rhythm_explanation_local,
 )
-from validator import TheoryValidator, validate_progression
+from agents.theory_agent import generate_theory_output_local
+from validator import TheoryValidator
 from memory import SessionManager, get_or_create_session, UserProfile, ProjectContext
 from utils.tokens import TokenTracker
 
@@ -85,10 +89,21 @@ class GenerateResponse(BaseModel):
     # Core outputs
     progressions: Optional[List[Dict]] = None
     drum_patterns: Optional[List[Dict]] = None
+    progression: Optional[Dict] = None
+
+    # Sidebar (Phase 2)
+    key: Optional[str] = None
+    bpm: Optional[int] = None
+    progression_name: Optional[str] = None
+    genre_context: Optional[str] = None
 
     # Agent outputs
     production_steps: Optional[str] = None
     teaching_note: Optional[str] = None
+
+    # Theory Agent extended output
+    alternatives: Optional[List[Dict]] = None
+    melody_direction: Optional[Dict] = None
 
     # Validation
     validation: Optional[Dict] = None
@@ -104,7 +119,22 @@ class FeedbackRequest(BaseModel):
     """Feedback on a generation."""
     session_id: str
     entry_index: int = Field(-1, description="History entry index (-1 for last)")
-    feedback: str = Field(..., description="thumbs_up, thumbs_down, or regenerate")
+    feedback: str = Field(
+        ...,
+        description="thumbs_up, thumbs_down, regenerate, progression_swap",
+    )
+    swap_label: Optional[str] = None
+
+
+class SessionCreateBody(BaseModel):
+    theory_level: str = "rusty_intermediate"
+    production_level: str = "beginner"
+    session_mode: Optional[str] = None
+
+
+class SessionPatchBody(BaseModel):
+    """Partial session update. song_name is stored on current_project.name."""
+    song_name: Optional[str] = None
 
 
 class SessionResponse(BaseModel):
@@ -114,6 +144,24 @@ class SessionResponse(BaseModel):
     user_profile: Dict
     current_project: Dict
     history_count: int
+    session_mode: Optional[str] = None
+
+
+class ExpandProgressionRequest(BaseModel):
+    """Expand alternative chord names to full note-level progression."""
+    chords: List[str] = Field(..., min_length=1)
+    key: str = Field(..., min_length=1)
+    progression_name: str = Field(..., min_length=1)
+    session_id: Optional[str] = None
+
+
+class ExpandProgressionResponse(BaseModel):
+    success: bool
+    key: str
+    scale: str
+    progression_name: str
+    chords: List[Dict]
+    validation: Optional[Dict] = None
 
 
 class ProjectUpdateRequest(BaseModel):
@@ -123,6 +171,21 @@ class ProjectUpdateRequest(BaseModel):
     bpm: Optional[int] = None
     genre: Optional[str] = None
     name: Optional[str] = None
+
+
+def _normalize_alternatives_for_api(alternatives: Optional[List[Dict]]) -> Optional[List[Dict]]:
+    if not alternatives:
+        return alternatives
+    out: List[Dict] = []
+    for a in alternatives:
+        b = dict(a)
+        lab = b.get("label") or ""
+        b["label"] = lab.replace("_", " ") if isinstance(lab, str) else lab
+        ch = b.get("chords") or []
+        if ch and isinstance(ch[0], str):
+            b["chords"] = [{"name": x, "numeral": ""} for x in ch]
+        out.append(b)
+    return out
 
 
 # =============================================================================
@@ -137,6 +200,33 @@ async def health_check():
         "timestamp": datetime.now().isoformat(),
         "version": "0.1.0",
     }
+
+
+def _extract_key_from_prompt(prompt: str) -> Optional[str]:
+    """
+    Extract an explicit key signature from a prompt.
+
+    Matches patterns like: "in C major", "in C# minor", "in Db major", "in F# minor",
+    "C major", "Bb minor", etc.
+
+    Returns a string like "C# major" or None if no key found.
+    """
+    import re
+    # Match note letter (A-G), optional sharp/flat (# or b), then major/minor
+    pattern = r'\b([A-Ga-g][#b]?)\s+(major|minor|maj|min)\b'
+    match = re.search(pattern, prompt, re.IGNORECASE)
+    if match:
+        note = match.group(1)
+        # Normalize: uppercase first letter, preserve sharp/flat
+        note = note[0].upper() + note[1:]
+        mode = match.group(2).lower()
+        # Normalize mode names
+        if mode == 'maj':
+            mode = 'major'
+        elif mode == 'min':
+            mode = 'minor'
+        return f"{note} {mode}"
+    return None
 
 
 def detect_intent_local(prompt: str) -> tuple:
@@ -158,6 +248,11 @@ def detect_intent_local(prompt: str) -> tuple:
 
     extracted = {'moods': [], 'genres': []}
 
+    # Extract explicit key if specified
+    key = _extract_key_from_prompt(prompt)
+    if key:
+        extracted['key'] = key
+
     # Check for moods
     for mood in mood_keywords:
         if mood in prompt_lower:
@@ -174,7 +269,7 @@ def detect_intent_local(prompt: str) -> tuple:
     elif any(kw in prompt_lower for kw in drum_keywords):
         extracted['genres'] = extracted['genres'] or ['trap']  # Default to trap
         return ('drum_pattern', 0.85, extracted)
-    elif extracted['moods'] or extracted['genres']:
+    elif extracted['moods'] or extracted['genres'] or extracted.get('key'):
         return ('mood_vibe', 0.9, extracted)
     else:
         # Default to mood_vibe with generic extraction
@@ -190,6 +285,8 @@ async def generate(request: GenerateRequest):
     """
     # Get or create session
     session = get_or_create_session(session_manager, request.session_id)
+
+    extracted: Dict[str, Any] = {}
 
     # Use local intent detection if not using API
     if not request.use_api:
@@ -221,17 +318,31 @@ async def generate(request: GenerateRequest):
             moods = extracted.get('moods', [])
             genres = extracted.get('genres', [])
 
+            # Parse user-specified key, or default to A minor
+            user_key = extracted.get('key')  # e.g. "C# major" or None
+            if user_key:
+                key_parts = user_key.split()
+                key_root = key_parts[0]  # e.g. "C#"
+                key_mode = key_parts[1] if len(key_parts) > 1 else 'minor'  # e.g. "major"
+            else:
+                key_root = 'A'
+                key_mode = 'minor'
+
             progressions = []
             for mood in moods:
-                progs = search_progressions(mood=mood)
+                progs = search_progressions(mood=mood, key_type=key_mode)
                 progressions.extend(progs)
             for genre in genres:
-                progs = search_progressions(genre=genre)
+                progs = search_progressions(genre=genre, key_type=key_mode)
                 progressions.extend(progs)
 
-            if not progressions and not moods and not genres:
-                # Default search
-                progressions = search_progressions(mood='melancholic')
+            if not progressions:
+                # Broaden: search by key_type alone, or fall back to defaults
+                progs = search_progressions(key_type=key_mode)
+                if progs:
+                    progressions.extend(progs)
+                elif not moods and not genres:
+                    progressions = search_progressions(mood='melancholic')
 
             # Dedupe and convert
             seen = set()
@@ -241,16 +352,16 @@ async def generate(request: GenerateRequest):
                     seen.add(p.name)
                     unique.append(p)
 
-            # Convert to chord data
+            # Convert to chord data using the user's key
             from theory import get_progression_chords
             result.local_data['progressions'] = []
             for prog in unique[:3]:
                 try:
-                    chords = get_progression_chords(prog.numerals, 'A', prog.key_type, octave=3)
+                    chords = get_progression_chords(prog.numerals, key_root, prog.key_type, octave=3)
                     result.local_data['progressions'].append({
                         'name': prog.name,
                         'numerals': prog.numerals,
-                        'key': f'A {prog.key_type}',
+                        'key': f'{key_root} {prog.key_type}',
                         'chords': chords,
                         'tempo_range': prog.tempo_range,
                         'description': prog.description,
@@ -288,6 +399,7 @@ async def generate(request: GenerateRequest):
         # Use full orchestrator with API
         orchestrator = Orchestrator()
         result = orchestrator.process(request.prompt)
+        extracted = getattr(result.intent, "extracted", None) or {}
 
     # Check for clarification needed
     if result.clarification_needed:
@@ -338,12 +450,48 @@ async def generate(request: GenerateRequest):
                 # Generate teaching note (local)
                 response_data["teaching_note"] = generate_progression_explanation_local(prog)
 
+                response_data["progression"] = prog
+                response_data["key"] = prog.get("key")
+                response_data["bpm"] = parse_bpm_from_tempo(
+                    prog.get("tempo_range"),
+                    prog.get("tempo_suggestion"),
+                )
+                g = prog.get("genres")
+                response_data["genre_context"] = (
+                    ", ".join(g) if isinstance(g, list) else (g if isinstance(g, str) else None)
+                )
+                response_data["progression_name"] = prog.get("name") or "–".join(
+                    prog.get("numerals") or []
+                )
+
+            # Generate alternatives and melody direction
+            theory_output = generate_theory_output_local(
+                result.local_data["progressions"],
+                intent_data=extracted,
+            )
+            if theory_output.get("alternatives"):
+                response_data["alternatives"] = _normalize_alternatives_for_api(
+                    theory_output["alternatives"]
+                )
+            if theory_output.get("melody_direction"):
+                response_data["melody_direction"] = theory_output["melody_direction"]
+
         # Drum patterns
         if "drum_patterns" in result.local_data:
             response_data["drum_patterns"] = result.local_data["drum_patterns"]
 
             if result.local_data["drum_patterns"]:
                 pattern = result.local_data["drum_patterns"][0]
+
+                response_data["bpm"] = parse_bpm_from_tempo(
+                    pattern.get("tempo_range"),
+                    pattern.get("tempo_suggestion"),
+                )
+                g = pattern.get("genres")
+                response_data["genre_context"] = (
+                    ", ".join(g) if isinstance(g, list) else (g if isinstance(g, str) else None)
+                )
+                response_data["progression_name"] = pattern.get("name")
 
                 # Generate production steps for drums
                 if not response_data.get("production_steps"):
@@ -402,16 +550,17 @@ async def generate(request: GenerateRequest):
 
 
 @app.post("/api/session", response_model=SessionResponse)
-async def create_session(
-    theory_level: str = Query("rusty_intermediate"),
-    production_level: str = Query("beginner"),
-):
-    """Create a new session."""
+async def create_session(body: SessionCreateBody = Body()):
+    """Create a new session (optional session_mode for Phase 2 workflow)."""
     profile = UserProfile(
-        theory_level=theory_level,
-        production_level=production_level,
+        theory_level=body.theory_level,
+        production_level=body.production_level,
     )
-    session = session_manager.create_session(user_profile=profile)
+    session = session_manager.create_session(
+        user_profile=profile,
+        project_context=ProjectContext(name="Untitled Session"),
+        session_mode=body.session_mode,
+    )
 
     return SessionResponse(
         session_id=session.session_id,
@@ -419,6 +568,29 @@ async def create_session(
         user_profile=session.user_profile.__dict__,
         current_project=session.current_project.__dict__,
         history_count=0,
+        session_mode=session.session_mode,
+    )
+
+
+@app.patch("/api/session/{session_id}", response_model=SessionResponse)
+async def patch_session(session_id: str, body: SessionPatchBody = Body(...)):
+    """Update session fields. song_name maps to current project display name."""
+    session = session_manager.load_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if body.song_name is not None:
+        cleaned = body.song_name.strip() or "Untitled Session"
+        session_manager.update_project_context(session, name=cleaned)
+        session = session_manager.load_session(session_id)
+
+    return SessionResponse(
+        session_id=session.session_id,
+        created_at=session.created_at,
+        user_profile=session.user_profile.__dict__,
+        current_project=session.current_project.__dict__,
+        history_count=len(session.history),
+        session_mode=session.session_mode,
     )
 
 
@@ -435,6 +607,7 @@ async def get_session(session_id: str):
         user_profile=session.user_profile.__dict__,
         current_project=session.current_project.__dict__,
         history_count=len(session.history),
+        session_mode=session.session_mode,
     )
 
 
@@ -460,6 +633,27 @@ async def get_session_history(session_id: str, limit: int = Query(10)):
     }
 
 
+@app.post("/api/progression/expand", response_model=ExpandProgressionResponse)
+async def expand_progression(req: ExpandProgressionRequest):
+    """Expand chord names to full note-level data + music21 validation."""
+    try:
+        chords_out, val, scale = expand_chords_from_names(
+            req.chords,
+            req.key.strip(),
+            req.progression_name.strip(),
+        )
+        return ExpandProgressionResponse(
+            success=True,
+            key=req.key.strip(),
+            scale=scale,
+            progression_name=req.progression_name.strip(),
+            chords=chords_out,
+            validation=val,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
 @app.post("/api/feedback")
 async def record_feedback(request: FeedbackRequest):
     """Record feedback on a generation."""
@@ -467,19 +661,32 @@ async def record_feedback(request: FeedbackRequest):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    if request.feedback not in ["thumbs_up", "thumbs_down", "regenerate"]:
+    if request.feedback not in [
+        "thumbs_up",
+        "thumbs_down",
+        "regenerate",
+        "progression_swap",
+    ]:
         raise HTTPException(status_code=400, detail="Invalid feedback type")
+
+    if request.feedback == "progression_swap" and not request.swap_label:
+        raise HTTPException(status_code=400, detail="swap_label required for progression_swap")
 
     success = session_manager.record_feedback(
         session,
         entry_index=request.entry_index,
         feedback=request.feedback,
+        feedback_label=request.swap_label,
     )
 
     if not success:
         raise HTTPException(status_code=400, detail="Could not record feedback")
 
-    return {"success": True, "feedback": request.feedback}
+    return {
+        "success": True,
+        "feedback": request.feedback,
+        "swap_label": request.swap_label,
+    }
 
 
 @app.post("/api/project")

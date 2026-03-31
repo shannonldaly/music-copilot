@@ -138,15 +138,39 @@
   letter-spacing: 0.06em;
 }
 
+.rollHost {
+  position: relative;
+  flex: 1;
+  min-height: 120px;
+}
+
 .roll {
   flex: 1;
   display: flex;
   gap: 2px;
   min-height: 120px;
+  height: 100%;
   background: #111;
   border: 1px solid #222;
   border-radius: 2px;
   padding: 4px;
+}
+
+.rollOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(17, 17, 17, 0.92);
+  border: 1px solid #222;
+  border-radius: 2px;
+}
+
+.rollOverlayText {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: #7a7a7a;
 }
 
 .chordColumn {

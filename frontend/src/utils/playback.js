@@ -94,6 +94,7 @@ export async function playProgression(bpm, chords, onProgress) {
     Tone.Draw.schedule(() => {
       if (onProgress) onProgress(i);
     }, start);
+    if (!noteNames.length) return;
     const freq = noteNames.map((n) => Tone.Frequency(n).toFrequency());
     synth.triggerAttackRelease(freq, barSec * 0.95, start);
   });

@@ -7,7 +7,7 @@ This is deterministic — no LLM needed.
 
 from dataclasses import dataclass
 from typing import List, Optional
-from .core import Note, transpose
+from .core import Note, transpose, spell_note_for_interval
 
 # Chord patterns as semitones from root
 CHORD_PATTERNS = {
@@ -99,9 +99,8 @@ class Chord:
         return CHORD_PATTERNS[self.quality]
 
     def get_notes(self, octave: int = 4) -> List[Note]:
-        """Get all notes in the chord at given octave."""
-        root_note = Note(name=self.root, octave=octave)
-        return [transpose(root_note, interval) for interval in self.intervals]
+        """Get all notes in the chord at given octave, with correct enharmonic spelling."""
+        return [spell_note_for_interval(self.root, octave, interval) for interval in self.intervals]
 
     def get_note_names(self) -> List[str]:
         """Get just the note names (no octave)."""

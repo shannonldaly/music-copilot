@@ -17,10 +17,6 @@ export async function generatePrompt(prompt, sessionId) {
   return data;
 }
 
-/**
- * Prefer streaming endpoint when backend sends NDJSON or SSE.
- * Otherwise same as generatePrompt (single JSON).
- */
 export async function generatePromptStreaming(prompt, sessionId, { onAgentEvent } = {}) {
   const res = await fetch(`${BASE}/api/generate`, {
     method: 'POST',
@@ -107,15 +103,31 @@ function dispatchStreamObj(obj, onAgentEvent, setFinal) {
   if (obj.success !== undefined && obj.session_id) setFinal(obj);
 }
 
-export function postFeedback(sessionId, feedback, entryIndex = -1) {
+export function postFeedback(sessionId, feedback, { entryIndex = -1, swapLabel } = {}) {
   return api.post('/api/feedback', {
     session_id: sessionId,
     entry_index: entryIndex,
     feedback,
+    swap_label: swapLabel,
   });
 }
 
-export async function createSession() {
-  const { data } = await api.post('/api/session');
-  return data.session_id;
+export async function createSession(body = {}) {
+  const { data } = await api.post('/api/session', body);
+  return data;
+}
+
+export async function patchSession(sessionId, body) {
+  const { data } = await api.patch(`/api/session/${sessionId}`, body);
+  return data;
+}
+
+export async function expandProgression({ chords, key, progression_name, sessionId }) {
+  const { data } = await api.post('/api/progression/expand', {
+    chords,
+    key,
+    progression_name,
+    session_id: sessionId || undefined,
+  });
+  return data;
 }

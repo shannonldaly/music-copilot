@@ -38,7 +38,16 @@ function buildRollLayout(chords) {
   return { minMidi, maxMidi, rows };
 }
 
-export default function SessionPanel({ mode, chords, drumGrid, bpm, progressionName, keyName, genreContext }) {
+export default function SessionPanel({
+  mode,
+  chords,
+  drumGrid,
+  bpm,
+  progressionName,
+  keyName,
+  genreContext,
+  rollLoading,
+}) {
   const { rows } = buildRollLayout(chords);
   const isDrums = mode === 'drums';
   const { rows: drumRows, stepIndices } = isDrums ? buildDrumRows(drumGrid) : { rows: [], stepIndices: [] };
@@ -108,22 +117,29 @@ export default function SessionPanel({ mode, chords, drumGrid, bpm, progressionN
 
           <div className={styles.rollWrap}>
             <div className={styles.rollLabel}>Piano roll</div>
-            <div className={styles.roll}>
-              {rows.map((row) => (
-                <div key={row.chordIdx} className={styles.chordColumn}>
-                  {row.blocks.map((b) => (
-                    <div
-                      key={`${b.midi}-${b.label}`}
-                      className={styles.noteBlock}
-                      style={{
-                        background: row.color,
-                        top: `${b.y * 100}%`,
-                      }}
-                      title={b.label}
-                    />
-                  ))}
+            <div className={styles.rollHost}>
+              <div className={styles.roll}>
+                {rows.map((row) => (
+                  <div key={row.chordIdx} className={styles.chordColumn}>
+                    {row.blocks.map((b) => (
+                      <div
+                        key={`${b.midi}-${b.label}`}
+                        className={styles.noteBlock}
+                        style={{
+                          background: row.color,
+                          top: `${b.y * 100}%`,
+                        }}
+                        title={b.label}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+              {rollLoading ? (
+                <div className={styles.rollOverlay}>
+                  <span className={styles.rollOverlayText}>Loading notes…</span>
                 </div>
-              ))}
+              ) : null}
             </div>
           </div>
         </>
