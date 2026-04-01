@@ -21,9 +21,11 @@ from .teaching_agent import (
 from .theory_agent import (
     TheoryAgent,
     generate_theory_output_local,
+    generate_artist_blend_local,
 )
 from .sound_engineering_agent import (
     SoundEngineeringAgent,
+    generate_sound_engineering_local,
 )
 
 __all__ = [
@@ -45,6 +47,8 @@ __all__ = [
     # Theory Agent
     'TheoryAgent',
     'generate_theory_output_local',
+    'generate_artist_blend_local',
     # Sound Engineering Agent
     'SoundEngineeringAgent',
+    'generate_sound_engineering_local',
 ]

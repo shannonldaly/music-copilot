@@ -39,7 +39,8 @@ from agents.teaching_agent import (
     generate_progression_explanation_local,
     generate_rhythm_explanation_local,
 )
-from agents.theory_agent import generate_theory_output_local
+from agents.theory_agent import generate_theory_output_local, generate_artist_blend_local
+from agents.sound_engineering_agent import generate_sound_engineering_local
 from validator import TheoryValidator
 from memory import SessionManager, get_or_create_session, UserProfile, ProjectContext
 from utils.tokens import TokenTracker
@@ -104,6 +105,12 @@ class GenerateResponse(BaseModel):
     # Theory Agent extended output
     alternatives: Optional[List[Dict]] = None
     melody_direction: Optional[Dict] = None
+
+    # Sound Engineering Agent output
+    sound_engineering_response: Optional[Dict] = None
+
+    # Artist Blend output
+    artist_blend: Optional[Dict] = None
 
     # Validation
     validation: Optional[Dict] = None
@@ -229,6 +236,41 @@ def _extract_key_from_prompt(prompt: str) -> Optional[str]:
     return None
 
 
+# Known artists from artist_dna.md (lowercase for matching)
+KNOWN_ARTISTS = [
+    'massive attack', 'portishead', 'skrillex', 'fred again',
+    'ben böhmer', 'ben bohmer', 'hooverphonics', 'deftones',
+    'nine inch nails', 'trent reznor', 'nin', 'clozee',
+    'griz', 'deadmau5', 'sofi tukker',
+]
+
+# Canonical display names for matched artists
+ARTIST_DISPLAY_NAMES = {
+    'massive attack': 'Massive Attack', 'portishead': 'Portishead',
+    'skrillex': 'Skrillex', 'fred again': 'Fred Again..',
+    'ben böhmer': 'Ben Böhmer', 'ben bohmer': 'Ben Böhmer',
+    'hooverphonics': 'Hooverphonics', 'deftones': 'Deftones',
+    'nine inch nails': 'Nine Inch Nails', 'trent reznor': 'Nine Inch Nails',
+    'nin': 'Nine Inch Nails', 'clozee': 'CloZee', 'griz': 'GRiZ',
+    'deadmau5': 'Deadmau5', 'sofi tukker': 'Sofi Tukker',
+}
+
+# Blend trigger words — patterns like "X meets Y", "X and Y", "X x Y"
+BLEND_PATTERNS = [' meets ', ' x ', ' and ', ' + ', ' with ', ' vs ']
+
+
+def _extract_artists(prompt: str) -> List[str]:
+    """Extract known artist names from a prompt. Returns canonical display names."""
+    prompt_lower = prompt.lower()
+    found = []
+    for artist in KNOWN_ARTISTS:
+        if artist in prompt_lower:
+            display = ARTIST_DISPLAY_NAMES.get(artist, artist.title())
+            if display not in found:
+                found.append(display)
+    return found
+
+
 def detect_intent_local(prompt: str) -> tuple:
     """
     Simple keyword-based intent detection (no API needed).
@@ -243,8 +285,13 @@ def detect_intent_local(prompt: str) -> tuple:
     genre_keywords = ['lo-fi', 'lofi', 'trap', 'jazz', 'rock', 'pop', 'edm',
                       'house', 'hip-hop', 'hip hop', 'r&b', 'classical', 'ambient']
     drum_keywords = ['beat', 'drum', 'rhythm', 'pattern', 'groove']
-    production_keywords = ['how do i', 'how to', 'sidechain', 'eq', 'compress',
-                          'reverb', 'delay', 'mix', 'master']
+    sound_engineering_keywords = [
+        'mix', 'eq', 'compress', 'reverb', 'automate', 'automation',
+        'filter', 'frequency', 'sidechain', 'oscillator', 'synthesis',
+        'sound design', 'plugin', 'bass eq', 'kick eq', 'high-pass',
+        'low-pass', 'gain staging', 'lufs', 'mastering',
+    ]
+    production_keywords = ['how do i', 'how to']
 
     extracted = {'moods': [], 'genres': []}
 
@@ -252,6 +299,11 @@ def detect_intent_local(prompt: str) -> tuple:
     key = _extract_key_from_prompt(prompt)
     if key:
         extracted['key'] = key
+
+    # Extract artists
+    artists = _extract_artists(prompt)
+    if artists:
+        extracted['artists'] = artists
 
     # Check for moods
     for mood in mood_keywords:
@@ -263,17 +315,36 @@ def detect_intent_local(prompt: str) -> tuple:
         if genre in prompt_lower:
             extracted['genres'].append(genre.replace('-', '_'))
 
-    # Determine intent type
+    # --- Determine intent type (order matters: most specific first) ---
+
+    # Artist blend: two or more artists + a blend trigger word
+    if len(artists) >= 2 and any(bp in prompt_lower for bp in BLEND_PATTERNS):
+        return ('artist_blend', 0.95, extracted)
+
+    # Sound engineering: specific mixing/production technique questions
+    if any(kw in prompt_lower for kw in sound_engineering_keywords):
+        extracted['question'] = prompt
+        return ('sound_engineering', 0.9, extracted)
+
+    # General production question (how-to without a specific SE keyword)
     if any(kw in prompt_lower for kw in production_keywords):
         return ('production_question', 0.8, extracted)
-    elif any(kw in prompt_lower for kw in drum_keywords):
-        extracted['genres'] = extracted['genres'] or ['trap']  # Default to trap
+
+    # Drum patterns
+    if any(kw in prompt_lower for kw in drum_keywords):
+        extracted['genres'] = extracted['genres'] or ['trap']
         return ('drum_pattern', 0.85, extracted)
-    elif extracted['moods'] or extracted['genres'] or extracted.get('key'):
+
+    # Single artist reference (not a blend)
+    if len(artists) == 1:
+        return ('artist_reference', 0.9, extracted)
+
+    # Mood/genre/key
+    if extracted['moods'] or extracted['genres'] or extracted.get('key'):
         return ('mood_vibe', 0.9, extracted)
-    else:
-        # Default to mood_vibe with generic extraction
-        return ('mood_vibe', 0.5, {'moods': [], 'genres': []})
+
+    # Default
+    return ('mood_vibe', 0.5, {'moods': [], 'genres': []})
 
 
 @app.post("/api/generate", response_model=GenerateResponse)
@@ -395,6 +466,23 @@ async def generate(request: GenerateRequest):
                     'grid': pattern.to_grid(),
                     'genres': pattern.genres,
                 })
+
+        elif intent_type == 'sound_engineering':
+            # Sound Engineering Agent — local response
+            se_response = generate_sound_engineering_local(request.prompt)
+            if se_response:
+                result.local_data['sound_engineering_response'] = se_response
+
+        elif intent_type == 'artist_blend':
+            # Artist blend — pull two profiles and blend
+            artists = extracted.get('artists', [])
+            if len(artists) >= 2:
+                blend_result = generate_artist_blend_local(artists[0], artists[1])
+                if blend_result:
+                    result.local_data['artist_blend'] = blend_result['artist_blend']
+                    # Also generate progression + alternatives + melody_direction
+                    if blend_result.get('progression'):
+                        result.local_data['progressions'] = [blend_result['progression']]
     else:
         # Use full orchestrator with API
         orchestrator = Orchestrator()
@@ -504,6 +592,14 @@ async def generate(request: GenerateRequest):
                     response_data["teaching_note"] = generate_rhythm_explanation_local(pattern)
                 else:
                     response_data["teaching_note"] += "\n\n---\n\n" + generate_rhythm_explanation_local(pattern)
+
+        # Sound engineering response
+        if "sound_engineering_response" in result.local_data:
+            response_data["sound_engineering_response"] = result.local_data["sound_engineering_response"]
+
+        # Artist blend response
+        if "artist_blend" in result.local_data:
+            response_data["artist_blend"] = result.local_data["artist_blend"]
 
     # Use API for enhanced output if requested
     if request.use_api and result.local_data:

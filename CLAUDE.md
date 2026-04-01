@@ -448,6 +448,7 @@ Seven agents on every request is expensive. The Orchestrator enforces routing di
 | `/api/session/{id}/history` | GET | Get session history with feedback |
 | `/api/feedback` | POST | Record thumbs_up/thumbs_down/regenerate/progression_swap |
 | `/api/project` | POST | Update project context (key, BPM, genre) |
+| `/api/session/{id}` | PATCH | Update session (e.g. song_name) |
 | `/api/sessions` | GET | List all sessions |
 
 **`/api/generate` response contract** (key fields):
@@ -477,15 +478,21 @@ uvicorn api.main:app --reload --port 8000
 ```
 API docs available at: `http://localhost:8000/docs`
 
-### Phase 2 — Polish & Demo-Readiness 🔧 IN PROGRESS
+### Phase 2 — Polish & Demo-Readiness ✅ COMPLETE
 *Goal: Something you'd show an employer without apologizing for anything.*
 
-1. 🔧 Frontend overhaul — session modal, progress sidebar, Also Try interactive progressions, melody direction panel
-2. Add clarification loop for ambiguous input
-3. ✅ Add Sound Engineering Agent to the routing (`agents/sound_engineering_agent.py`)
-4. Refine Teaching Agent calibration based on actual use
-5. Add cost logging dashboard (dev-only)
-6. Record a 60-second demo video
+1. ✅ Frontend overhaul — session modal, progress sidebar, Also Try interactive progressions, melody direction panel
+2. ✅ Add Sound Engineering Agent to the routing (`agents/sound_engineering_agent.py`)
+3. ✅ Enharmonic spelling fix — flat keys use flats, sharp keys use sharps, Theory Validator uses pitch-space comparison
+4. ✅ Key extraction from prompts — user-specified keys (C# major, Bb minor, etc.) respected throughout the pipeline
+5. ✅ PATCH `/api/session/{id}` endpoint — update song_name on sessions
+6. ✅ Backend validated across A minor, F# minor, Bb minor, C# major, D major, Eb major, G minor, and drum patterns
+
+**Not shipped in Phase 2** (deferred or not needed for demo):
+- Clarification loop for ambiguous input (deferred to post-MCP)
+- Teaching Agent calibration refinement (needs real usage data)
+- Cost logging dashboard (dev-only, low priority)
+- 60-second demo video (record after Phase 3 MCP integration)
 
 ### Phase 3 — Ableton MCP Integration
 *Goal: Chord progressions appear directly in Ableton, no copy-paste.*
@@ -530,5 +537,5 @@ API docs available at: `http://localhost:8000/docs`
 
 ---
 
-*Last updated: 2026-03-31 — Phase 2 in progress. Added Theory Agent (alternatives + melody_direction), Sound Engineering Agent (grounded in automation_playbook.md + artist_dna.md), POST /api/progression/expand endpoint, 5 new grounding docs, Agent Management Protocol section.*
+*Last updated: 2026-03-31 — Phase 2 complete. Enharmonic spelling fixed at theory layer. All backend tests passing (A minor, F# minor, Bb minor, C# major, D major, Eb major, G minor, drums). PATCH /api/session live. Phase 3 (Ableton MCP) is next.*
 *Next update trigger: Any agent spec change, any architectural decision, any new dependency added*
