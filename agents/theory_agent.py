@@ -831,12 +831,17 @@ def generate_artist_blend_local(artist_1: str, artist_2: str) -> Optional[Dict]:
     )
 
     # Production direction — concrete guidance
+    # Calculate tempo range as the overlap, or midpoint ±10 if no overlap
     tempo_low = max(profile_1['tempo_range'][0], profile_2['tempo_range'][0])
     tempo_high = min(profile_1['tempo_range'][1], profile_2['tempo_range'][1])
-    if tempo_low > tempo_high:
-        # No overlap — split the difference
-        tempo_low = (profile_1['tempo_range'][0] + profile_2['tempo_range'][0]) // 2
-        tempo_high = (profile_1['tempo_range'][1] + profile_2['tempo_range'][1]) // 2
+    if tempo_low >= tempo_high:
+        # No meaningful overlap — use midpoint of all four values ±10
+        midpoint = (
+            profile_1['tempo_range'][0] + profile_1['tempo_range'][1] +
+            profile_2['tempo_range'][0] + profile_2['tempo_range'][1]
+        ) // 4
+        tempo_low = midpoint - 10
+        tempo_high = midpoint + 10
 
     # Key type: if both agree, use that; otherwise default to minor
     key_type = profile_1['key_type'] if profile_1['key_type'] == profile_2['key_type'] else 'minor'
