@@ -15,6 +15,8 @@ Cost efficiency strategy:
 """
 
 import json
+import logging
+import os
 import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any, Tuple
@@ -49,8 +51,10 @@ from agents.teaching_agent import (
     TeachingAgent,
 )
 from agents.theory_agent import generate_theory_output_local, generate_artist_blend_local
-from agents.sound_engineering_agent import generate_sound_engineering_local
+from agents.sound_engineering_agent import generate_sound_engineering_local, SoundEngineeringAgent
 from validator import TheoryValidator
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -187,8 +191,14 @@ class Orchestrator:
     ):
         self._api_key = api_key
         self._client = None  # Lazy — created on first API call
+        self._has_api_key = bool(api_key or os.environ.get("ANTHROPIC_API_KEY"))
         self.model_config = model_config or ModelConfig()
         self.tracker = TokenTracker(request_budget=token_budget)
+
+        if self._has_api_key:
+            logger.info("Orchestrator: API key found — Teaching Agent uses Sonnet, SE Agent has API fallback")
+        else:
+            logger.info("Orchestrator: no API key — Teaching Agent uses local templates, SE Agent local only")
 
         # User profile (hardcoded for v1, will be dynamic in v2)
         self.user_profile = {
@@ -426,6 +436,10 @@ class Orchestrator:
             se_response = generate_sound_engineering_local(prompt)
             if se_response:
                 local_data['sound_engineering_response'] = se_response
+            elif self._has_api_key:
+                se_response = self._se_api_fallback(prompt)
+                if se_response:
+                    local_data['sound_engineering_response'] = se_response
 
         elif intent_type == 'artist_blend':
             artists = extracted.get('artists', [])
@@ -489,7 +503,7 @@ class Orchestrator:
                 response["validation"] = validation_result.to_dict()
 
                 response["production_steps"] = generate_chord_instructions_local(prog)
-                response["teaching_note"] = generate_progression_explanation_local(prog)
+                response["teaching_note"] = self._generate_teaching_note(prog)
 
                 response["progression"] = prog
                 response["key"] = prog.get("key")
@@ -572,8 +586,41 @@ class Orchestrator:
             if "progression_explanation" in teaching_result:
                 response["teaching_note"] = teaching_result["progression_explanation"]["explanation"]
 
-        except Exception:
-            pass  # Fall back to local output already in response
+        except Exception as e:
+            logger.warning(f"API enhancement failed, keeping local output: {e}")
+
+    # =========================================================================
+    # Teaching Agent — API-first with local fallback
+    # =========================================================================
+
+    def _generate_teaching_note(self, prog: dict) -> str:
+        """Generate teaching note — Sonnet API if key available, local fallback."""
+        if self._has_api_key:
+            try:
+                teaching_agent = TeachingAgent(tracker=self.tracker)
+                result = teaching_agent.explain_progression(
+                    prog,
+                    user_level=self.user_profile.get("theory_level", "rusty_intermediate"),
+                )
+                if result.get("explanation"):
+                    return result["explanation"]
+            except Exception as e:
+                logger.warning(f"Teaching Agent API failed, using local fallback: {e}")
+        return generate_progression_explanation_local(prog)
+
+    # =========================================================================
+    # Sound Engineering Agent — API fallback for unknown topics
+    # =========================================================================
+
+    def _se_api_fallback(self, question: str) -> Optional[Dict]:
+        """Call SE Agent API when local keyword matching returns no result."""
+        try:
+            se_agent = SoundEngineeringAgent(tracker=self.tracker)
+            result = se_agent.answer_question_structured(question, user_level="beginner")
+            return result
+        except Exception as e:
+            logger.warning(f"SE Agent API fallback failed: {e}")
+            return None
 
     # =========================================================================
     # process() — API-mode entry point (Haiku intent detection)

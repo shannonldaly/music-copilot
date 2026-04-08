@@ -134,6 +134,119 @@ class SoundEngineeringAgent:
             "question": question,
         }
 
+    def answer_question_structured(
+        self,
+        question: str,
+        user_level: str = "beginner",
+        context: Optional[Dict] = None,
+    ) -> Dict:
+        """
+        Answer a sound engineering question, returning the unified structured shape:
+        {summary, steps, ableton_path, principle, artist_reference}
+
+        This matches the local-mode contract so the frontend renders both
+        API and local responses identically.
+        """
+        system_prompt = self._build_structured_system_prompt(user_level, question)
+        user_prompt = self._build_user_prompt(question, context)
+
+        response = self.client.messages.create(
+            model=get_model_for_task(TaskType.SOUND_ENGINEERING, self.model_config),
+            max_tokens=1500,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}]
+        )
+
+        if self.tracker:
+            log_api_call(
+                self.tracker,
+                agent="sound_engineering_agent",
+                model="sonnet",
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+                request_type="engineering_question_structured"
+            )
+
+        # Parse structured JSON response
+        try:
+            result = json.loads(response.content[0].text)
+            # Validate required keys are present
+            required = {'summary', 'steps', 'ableton_path', 'principle', 'artist_reference'}
+            if required.issubset(result.keys()):
+                return result
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+        # Fallback: build structured response from raw text
+        raw = response.content[0].text
+        return {
+            "summary": raw[:200].split("\n")[0] if raw else "See details below.",
+            "steps": [line.strip("- ") for line in raw.split("\n") if line.strip().startswith(("-", "1", "2", "3", "4", "5"))][:5] or ["See the full explanation above."],
+            "ableton_path": "See steps above for Ableton-specific paths.",
+            "principle": raw[:500] if raw else "No explanation available.",
+            "artist_reference": "",
+        }
+
+    def _build_structured_system_prompt(self, user_level: str, question: str) -> str:
+        """Build system prompt that requests JSON output matching the local contract."""
+        level_guidance = {
+            "beginner": "Explain *why* before *how*. Define any technical term the first time you use it.",
+            "intermediate": "Assume basic DAW knowledge. Focus on the reasoning behind specific settings.",
+            "advanced": "Be concise. Focus on nuance and advanced techniques.",
+        }
+
+        question_lower = question.lower()
+        grounding_sections = []
+
+        automation_keywords = ["automate", "automation", "filter sweep", "build", "drop",
+                               "intro", "outro", "breakdown", "arrangement", "lfo",
+                               "section", "transition"]
+        if any(kw in question_lower for kw in automation_keywords):
+            grounding_sections.append(
+                f"AUTOMATION PLAYBOOK:\n{self.grounding_docs.get('automation', '')[:2500]}"
+            )
+
+        artist_keywords = ["like", "style", "sound like", "reference", "artist"]
+        if any(kw in question_lower for kw in artist_keywords):
+            grounding_sections.append(
+                f"ARTIST DNA:\n{self.grounding_docs.get('artist_dna', '')[:2500]}"
+            )
+
+        grounding_sections.append(
+            f"MIXING REFERENCE:\n{self.grounding_docs.get('mixing', '')[:2000]}"
+        )
+
+        grounding_text = "\n\n".join(grounding_sections)
+
+        return f"""You are a Sound Engineering Agent for a music production co-pilot.
+
+USER LEVEL: {user_level}
+{level_guidance.get(user_level, level_guidance["beginner"])}
+
+You MUST respond with valid JSON matching this exact structure:
+{{
+  "summary": "One-sentence summary of the concept and what it does.",
+  "steps": [
+    "Step 1: ...",
+    "Step 2: ...",
+    "Step 3: ..."
+  ],
+  "ableton_path": "Audio Effects → Category → Effect Name (the Ableton menu path)",
+  "principle": "A paragraph explaining *why* this matters and the underlying concept. Explain before instructing.",
+  "artist_reference": "ArtistName — one sentence about how they use this technique."
+}}
+
+RULES:
+- Give specific numbers (frequencies in Hz, ratios, ms values), not vague advice
+- steps should be 3-6 concrete actions in Ableton Live 12
+- ableton_path should be the actual Ableton browser path to the relevant effect
+- principle should explain *why* before *how*
+- artist_reference should name one artist and their specific use of this technique
+- Respond with valid JSON only — no markdown, no explanation outside the JSON
+
+GROUNDING CONTEXT:
+{grounding_text}"""
+
     def _build_system_prompt(self, user_level: str, question: str) -> str:
         """Build the system prompt with relevant grounding context."""
         level_guidance = {
