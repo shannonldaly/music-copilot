@@ -94,6 +94,7 @@ class GenerateResponse(BaseModel):
 
     # Sidebar (Phase 2)
     key: Optional[str] = None
+    key_was_specified: bool = False
     bpm: Optional[int] = None
     progression_name: Optional[str] = None
     genre_context: Optional[str] = None
@@ -209,144 +210,6 @@ async def health_check():
     }
 
 
-def _extract_key_from_prompt(prompt: str) -> Optional[str]:
-    """
-    Extract an explicit key signature from a prompt.
-
-    Matches patterns like: "in C major", "in C# minor", "in Db major", "in F# minor",
-    "C major", "Bb minor", etc.
-
-    Returns a string like "C# major" or None if no key found.
-    """
-    import re
-    # Match note letter (A-G), optional sharp/flat (# or b), then major/minor
-    pattern = r'\b([A-Ga-g][#b]?)\s+(major|minor|maj|min)\b'
-    match = re.search(pattern, prompt, re.IGNORECASE)
-    if match:
-        note = match.group(1)
-        # Normalize: uppercase first letter, preserve sharp/flat
-        note = note[0].upper() + note[1:]
-        mode = match.group(2).lower()
-        # Normalize mode names
-        if mode == 'maj':
-            mode = 'major'
-        elif mode == 'min':
-            mode = 'minor'
-        return f"{note} {mode}"
-    return None
-
-
-# Known artists from artist_dna.md (lowercase for matching)
-KNOWN_ARTISTS = [
-    'massive attack', 'portishead', 'skrillex', 'fred again',
-    'ben böhmer', 'ben bohmer', 'hooverphonics', 'deftones',
-    'nine inch nails', 'trent reznor', 'nin', 'clozee',
-    'griz', 'deadmau5', 'sofi tukker',
-]
-
-# Canonical display names for matched artists
-ARTIST_DISPLAY_NAMES = {
-    'massive attack': 'Massive Attack', 'portishead': 'Portishead',
-    'skrillex': 'Skrillex', 'fred again': 'Fred Again..',
-    'ben böhmer': 'Ben Böhmer', 'ben bohmer': 'Ben Böhmer',
-    'hooverphonics': 'Hooverphonics', 'deftones': 'Deftones',
-    'nine inch nails': 'Nine Inch Nails', 'trent reznor': 'Nine Inch Nails',
-    'nin': 'Nine Inch Nails', 'clozee': 'CloZee', 'griz': 'GRiZ',
-    'deadmau5': 'Deadmau5', 'sofi tukker': 'Sofi Tukker',
-}
-
-# Blend trigger words — patterns like "X meets Y", "X and Y", "X x Y"
-BLEND_PATTERNS = [' meets ', ' x ', ' and ', ' + ', ' with ', ' vs ']
-
-
-def _extract_artists(prompt: str) -> List[str]:
-    """Extract known artist names from a prompt. Returns canonical display names."""
-    prompt_lower = prompt.lower()
-    found = []
-    for artist in KNOWN_ARTISTS:
-        if artist in prompt_lower:
-            display = ARTIST_DISPLAY_NAMES.get(artist, artist.title())
-            if display not in found:
-                found.append(display)
-    return found
-
-
-def detect_intent_local(prompt: str) -> tuple:
-    """
-    Simple keyword-based intent detection (no API needed).
-
-    Returns (intent_type, confidence, extracted_data)
-    """
-    prompt_lower = prompt.lower()
-
-    # Keywords for each intent
-    mood_keywords = ['melancholic', 'happy', 'sad', 'dark', 'chill', 'uplifting',
-                     'epic', 'dreamy', 'nostalgic', 'aggressive', 'romantic']
-    genre_keywords = ['lo-fi', 'lofi', 'trap', 'jazz', 'rock', 'pop', 'edm',
-                      'house', 'hip-hop', 'hip hop', 'r&b', 'classical', 'ambient']
-    drum_keywords = ['beat', 'drum', 'rhythm', 'pattern', 'groove']
-    sound_engineering_keywords = [
-        'mix', 'eq', 'compress', 'reverb', 'automate', 'automation',
-        'filter', 'frequency', 'sidechain', 'oscillator', 'synthesis',
-        'sound design', 'plugin', 'bass eq', 'kick eq', 'high-pass',
-        'low-pass', 'gain staging', 'lufs', 'mastering',
-    ]
-    production_keywords = ['how do i', 'how to']
-
-    extracted = {'moods': [], 'genres': []}
-
-    # Extract explicit key if specified
-    key = _extract_key_from_prompt(prompt)
-    if key:
-        extracted['key'] = key
-
-    # Extract artists
-    artists = _extract_artists(prompt)
-    if artists:
-        extracted['artists'] = artists
-
-    # Check for moods
-    for mood in mood_keywords:
-        if mood in prompt_lower:
-            extracted['moods'].append(mood)
-
-    # Check for genres
-    for genre in genre_keywords:
-        if genre in prompt_lower:
-            extracted['genres'].append(genre.replace('-', '_'))
-
-    # --- Determine intent type (order matters: most specific first) ---
-
-    # Artist blend: two or more artists + a blend trigger word
-    if len(artists) >= 2 and any(bp in prompt_lower for bp in BLEND_PATTERNS):
-        return ('artist_blend', 0.95, extracted)
-
-    # Sound engineering: specific mixing/production technique questions
-    if any(kw in prompt_lower for kw in sound_engineering_keywords):
-        extracted['question'] = prompt
-        return ('sound_engineering', 0.9, extracted)
-
-    # General production question (how-to without a specific SE keyword)
-    if any(kw in prompt_lower for kw in production_keywords):
-        return ('production_question', 0.8, extracted)
-
-    # Drum patterns
-    if any(kw in prompt_lower for kw in drum_keywords):
-        extracted['genres'] = extracted['genres'] or ['trap']
-        return ('drum_pattern', 0.85, extracted)
-
-    # Single artist reference (not a blend)
-    if len(artists) == 1:
-        return ('artist_reference', 0.9, extracted)
-
-    # Mood/genre/key
-    if extracted['moods'] or extracted['genres'] or extracted.get('key'):
-        return ('mood_vibe', 0.9, extracted)
-
-    # Default
-    return ('mood_vibe', 0.5, {'moods': [], 'genres': []})
-
-
 @app.post("/api/generate", response_model=GenerateResponse)
 async def generate(request: GenerateRequest):
     """
@@ -356,12 +219,13 @@ async def generate(request: GenerateRequest):
     """
     # Get or create session
     session = get_or_create_session(session_manager, request.session_id)
+    orchestrator = Orchestrator()
 
     extracted: Dict[str, Any] = {}
 
     # Use local intent detection if not using API
     if not request.use_api:
-        intent_type, confidence, extracted = detect_intent_local(request.prompt)
+        intent_type, confidence, extracted = orchestrator.detect_intent_local(request.prompt)
 
         # Build a mock result for local processing
         class LocalResult:
@@ -389,15 +253,34 @@ async def generate(request: GenerateRequest):
             moods = extracted.get('moods', [])
             genres = extracted.get('genres', [])
 
-            # Parse user-specified key, or default to A minor
+            # Key priority: user-specified > genre default > mood default > fallback
             user_key = extracted.get('key')  # e.g. "C# major" or None
             if user_key:
+                # 1. User-specified key — always wins
                 key_parts = user_key.split()
-                key_root = key_parts[0]  # e.g. "C#"
-                key_mode = key_parts[1] if len(key_parts) > 1 else 'minor'  # e.g. "major"
+                key_root = key_parts[0]
+                key_mode = key_parts[1] if len(key_parts) > 1 else 'minor'
             else:
-                key_root = 'A'
-                key_mode = 'minor'
+                # 2. Genre-based default
+                minor_genres = {'lo_fi', 'lofi', 'trap', 'hip_hop', 'emo_rap', 'ambient'}
+                major_genres = {'pop', 'edm', 'house', 'dance', 'k_pop', 'j_pop'}
+                genre_set = set(genres)
+
+                # 3. Mood-based default
+                minor_moods = {'melancholic', 'sad', 'dark', 'nostalgic', 'aggressive'}
+                major_moods = {'happy', 'uplifting', 'epic', 'romantic'}
+
+                if genre_set & minor_genres:
+                    key_root, key_mode = 'A', 'minor'
+                elif genre_set & major_genres:
+                    key_root, key_mode = 'C', 'major'
+                elif set(moods) & minor_moods:
+                    key_root, key_mode = 'A', 'minor'
+                elif set(moods) & major_moods:
+                    key_root, key_mode = 'C', 'major'
+                else:
+                    # 4. Fallback
+                    key_root, key_mode = 'C', 'major'
 
             progressions = []
             for mood in moods:
@@ -408,7 +291,6 @@ async def generate(request: GenerateRequest):
                 progressions.extend(progs)
 
             if not progressions:
-                # Broaden: search by key_type alone, or fall back to defaults
                 progs = search_progressions(key_type=key_mode)
                 if progs:
                     progressions.extend(progs)
@@ -423,7 +305,7 @@ async def generate(request: GenerateRequest):
                     seen.add(p.name)
                     unique.append(p)
 
-            # Convert to chord data using the user's key
+            # Convert to chord data using the resolved key
             from theory import get_progression_chords
             result.local_data['progressions'] = []
             for prog in unique[:3]:
@@ -485,7 +367,6 @@ async def generate(request: GenerateRequest):
                         result.local_data['progressions'] = [blend_result['progression']]
     else:
         # Use full orchestrator with API
-        orchestrator = Orchestrator()
         result = orchestrator.process(request.prompt)
         extracted = getattr(result.intent, "extracted", None) or {}
 
@@ -506,6 +387,7 @@ async def generate(request: GenerateRequest):
         "session_id": session.session_id,
         "intent": result.intent.intent_type.value,
         "confidence": result.intent.confidence,
+        "key_was_specified": 'key' in extracted,
     }
 
     # Process local data
@@ -641,6 +523,8 @@ async def generate(request: GenerateRequest):
             "drum_patterns": response_data.get("drum_patterns"),
         },
     )
+
+    response_data.setdefault("key_was_specified", False)
 
     return GenerateResponse(**response_data)
 

@@ -15,6 +15,7 @@ Cost efficiency strategy:
 """
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any, Tuple
 from enum import Enum
@@ -36,6 +37,71 @@ from theory import (
 )
 from utils.tokens import TokenTracker, log_api_call
 from utils.models import ModelConfig, TaskType, get_model_for_task, HAIKU, SONNET
+
+
+# =============================================================================
+# Intent detection helpers (moved from api/main.py)
+# =============================================================================
+
+# Known artists from artist_dna.md (lowercase for matching)
+KNOWN_ARTISTS = [
+    'massive attack', 'portishead', 'skrillex', 'fred again',
+    'ben böhmer', 'ben bohmer', 'hooverphonics', 'deftones',
+    'nine inch nails', 'trent reznor', 'nin', 'clozee',
+    'griz', 'deadmau5', 'sofi tukker',
+]
+
+# Canonical display names for matched artists
+ARTIST_DISPLAY_NAMES = {
+    'massive attack': 'Massive Attack', 'portishead': 'Portishead',
+    'skrillex': 'Skrillex', 'fred again': 'Fred Again..',
+    'ben böhmer': 'Ben Böhmer', 'ben bohmer': 'Ben Böhmer',
+    'hooverphonics': 'Hooverphonics', 'deftones': 'Deftones',
+    'nine inch nails': 'Nine Inch Nails', 'trent reznor': 'Nine Inch Nails',
+    'nin': 'Nine Inch Nails', 'clozee': 'CloZee', 'griz': 'GRiZ',
+    'deadmau5': 'Deadmau5', 'sofi tukker': 'Sofi Tukker',
+}
+
+# Blend trigger words — patterns like "X meets Y", "X and Y", "X x Y"
+BLEND_PATTERNS = [' meets ', ' x ', ' and ', ' + ', ' with ', ' vs ']
+
+
+def _extract_key_from_prompt(prompt: str) -> Optional[str]:
+    """
+    Extract an explicit key signature from a prompt.
+
+    Matches patterns like: "in C major", "in C# minor", "in Db major", "in F# minor",
+    "C major", "Bb minor", etc.
+
+    Returns a string like "C# major" or None if no key found.
+    """
+    # Match note letter (A-G), optional sharp/flat (# or b), then major/minor
+    pattern = r'\b([A-Ga-g][#b]?)\s+(major|minor|maj|min)\b'
+    match = re.search(pattern, prompt, re.IGNORECASE)
+    if match:
+        note = match.group(1)
+        # Normalize: uppercase first letter, preserve sharp/flat
+        note = note[0].upper() + note[1:]
+        mode = match.group(2).lower()
+        # Normalize mode names
+        if mode == 'maj':
+            mode = 'major'
+        elif mode == 'min':
+            mode = 'minor'
+        return f"{note} {mode}"
+    return None
+
+
+def _extract_artists(prompt: str) -> List[str]:
+    """Extract known artist names from a prompt. Returns canonical display names."""
+    prompt_lower = prompt.lower()
+    found = []
+    for artist in KNOWN_ARTISTS:
+        if artist in prompt_lower:
+            display = ARTIST_DISPLAY_NAMES.get(artist, artist.title())
+            if display not in found:
+                found.append(display)
+    return found
 
 
 class IntentType(Enum):
@@ -105,7 +171,8 @@ class Orchestrator:
         model_config: Optional[ModelConfig] = None,
         token_budget: int = 4000,
     ):
-        self.client = Anthropic(api_key=api_key) if api_key else Anthropic()
+        self._api_key = api_key
+        self._client = None  # Lazy — created on first API call
         self.model_config = model_config or ModelConfig()
         self.tracker = TokenTracker(request_budget=token_budget)
 
@@ -117,6 +184,88 @@ class Orchestrator:
             "preferred_genres": ["lo-fi", "trap", "electronic"],
             "teaching_preference": "explain_why_first_then_how",
         }
+
+    @property
+    def client(self):
+        """Lazy Anthropic client — only created on first API call."""
+        if self._client is None:
+            self._client = Anthropic(api_key=self._api_key) if self._api_key else Anthropic()
+        return self._client
+
+    def detect_intent_local(self, prompt: str) -> tuple:
+        """
+        Keyword-based intent detection (no API needed).
+
+        Returns (intent_type, confidence, extracted_data).
+        """
+        prompt_lower = prompt.lower()
+
+        # Keywords for each intent
+        mood_keywords = ['melancholic', 'happy', 'sad', 'dark', 'chill', 'uplifting',
+                         'epic', 'dreamy', 'nostalgic', 'aggressive', 'romantic']
+        genre_keywords = ['lo-fi', 'lofi', 'trap', 'jazz', 'rock', 'pop', 'edm',
+                          'house', 'hip-hop', 'hip hop', 'r&b', 'classical', 'ambient']
+        drum_keywords = ['beat', 'drum', 'rhythm', 'pattern', 'groove']
+        sound_engineering_keywords = [
+            'mix', 'eq', 'compress', 'reverb', 'automate', 'automation',
+            'filter', 'frequency', 'sidechain', 'oscillator', 'synthesis',
+            'sound design', 'plugin', 'bass eq', 'kick eq', 'high-pass',
+            'low-pass', 'gain staging', 'lufs', 'mastering',
+        ]
+        production_keywords = ['how do i', 'how to']
+
+        extracted = {'moods': [], 'genres': []}
+
+        # Extract explicit key if specified
+        key = _extract_key_from_prompt(prompt)
+        if key:
+            extracted['key'] = key
+
+        # Extract artists
+        artists = _extract_artists(prompt)
+        if artists:
+            extracted['artists'] = artists
+
+        # Check for moods
+        for mood in mood_keywords:
+            if mood in prompt_lower:
+                extracted['moods'].append(mood)
+
+        # Check for genres
+        for genre in genre_keywords:
+            if genre in prompt_lower:
+                extracted['genres'].append(genre.replace('-', '_'))
+
+        # --- Determine intent type (order matters: most specific first) ---
+
+        # Artist blend: two or more artists + a blend trigger word
+        if len(artists) >= 2 and any(bp in prompt_lower for bp in BLEND_PATTERNS):
+            return ('artist_blend', 0.95, extracted)
+
+        # Sound engineering: specific mixing/production technique questions
+        if any(kw in prompt_lower for kw in sound_engineering_keywords):
+            extracted['question'] = prompt
+            return ('sound_engineering', 0.9, extracted)
+
+        # General production question (how-to without a specific SE keyword)
+        if any(kw in prompt_lower for kw in production_keywords):
+            return ('production_question', 0.8, extracted)
+
+        # Drum patterns
+        if any(kw in prompt_lower for kw in drum_keywords):
+            extracted['genres'] = extracted['genres'] or ['trap']
+            return ('drum_pattern', 0.85, extracted)
+
+        # Single artist reference (not a blend)
+        if len(artists) == 1:
+            return ('artist_reference', 0.9, extracted)
+
+        # Mood/genre/key
+        if extracted['moods'] or extracted['genres'] or extracted.get('key'):
+            return ('mood_vibe', 0.9, extracted)
+
+        # Default
+        return ('mood_vibe', 0.5, {'moods': [], 'genres': []})
 
     def process(self, user_input: str, session_history: Optional[List[Dict]] = None) -> OrchestratorResult:
         """
