@@ -50,7 +50,7 @@ from agents.teaching_agent import (
     generate_rhythm_explanation_local,
     TeachingAgent,
 )
-from agents.theory_agent import generate_theory_output_local, generate_artist_blend_local
+from agents.theory_agent import generate_theory_output_local, generate_artist_blend_local, ARTIST_PROFILES
 from agents.sound_engineering_agent import generate_sound_engineering_local, SoundEngineeringAgent
 from validator import TheoryValidator
 
@@ -449,6 +449,52 @@ class Orchestrator:
                     local_data['artist_blend'] = blend_result['artist_blend']
                     if blend_result.get('progression'):
                         local_data['progressions'] = [blend_result['progression']]
+
+        elif intent_type == 'artist_reference':
+            artists = extracted.get('artists', [])
+            if artists:
+                profile = ARTIST_PROFILES.get(artists[0])
+                if profile:
+                    key_type = profile['key_type']
+                    key_root = 'A' if key_type == 'minor' else 'C'
+                    # Override with user-specified key if present
+                    user_key = extracted.get('key')
+                    if user_key:
+                        parts = user_key.split()
+                        key_root = parts[0]
+                        key_type = parts[1] if len(parts) > 1 else key_type
+
+                    # Search using artist's moods and genres
+                    progressions = []
+                    for mood in profile['moods']:
+                        progs = search_progressions(mood=mood, key_type=key_type)
+                        progressions.extend(progs)
+
+                    seen = set()
+                    unique = []
+                    for p in progressions:
+                        if p.name not in seen:
+                            seen.add(p.name)
+                            unique.append(p)
+
+                    local_data['progressions'] = []
+                    for prog in unique[:3]:
+                        try:
+                            chords = get_progression_chords(
+                                prog.numerals, key_root, prog.key_type, octave=3
+                            )
+                            local_data['progressions'].append({
+                                'name': prog.name,
+                                'numerals': prog.numerals,
+                                'key': f'{key_root} {prog.key_type}',
+                                'chords': chords,
+                                'tempo_range': prog.tempo_range,
+                                'description': prog.description,
+                                'moods': prog.moods,
+                                'genres': prog.genres,
+                            })
+                        except ValueError:
+                            pass
 
         return local_data
 

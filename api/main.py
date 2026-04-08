@@ -60,10 +60,17 @@ session_manager = SessionManager()
 # =============================================================================
 
 class GenerateRequest(BaseModel):
-    """Request for music generation."""
+    """Request for music generation.
+
+    use_api controls intent detection and creative generation mode:
+    - False (default): keyword intent detection, curated local databases.
+      Teaching Agent still calls Sonnet API when ANTHROPIC_API_KEY is set
+      (quality decision), SE Agent falls back to API for unrecognized topics.
+    - True: Haiku LLM for intent detection, Sonnet for all creative agents.
+    """
     prompt: str = Field(..., description="User's request", min_length=1)
     session_id: Optional[str] = Field(None, description="Session ID for context")
-    use_api: bool = Field(False, description="Use LLM API (costs money) vs local only")
+    use_api: bool = Field(False, description="Use LLM for intent detection and all creative agents")
 
 
 class GenerateResponse(BaseModel):
