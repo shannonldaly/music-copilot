@@ -37,6 +37,20 @@ from theory import (
 )
 from utils.tokens import TokenTracker, log_api_call
 from utils.models import ModelConfig, TaskType, get_model_for_task, HAIKU, SONNET
+from api.progression_utils import parse_bpm_from_tempo
+from agents.production_agent import (
+    generate_chord_instructions_local,
+    generate_drum_instructions_local,
+    ProductionAgent,
+)
+from agents.teaching_agent import (
+    generate_progression_explanation_local,
+    generate_rhythm_explanation_local,
+    TeachingAgent,
+)
+from agents.theory_agent import generate_theory_output_local, generate_artist_blend_local
+from agents.sound_engineering_agent import generate_sound_engineering_local
+from validator import TheoryValidator
 
 
 # =============================================================================
@@ -266,6 +280,304 @@ class Orchestrator:
 
         # Default
         return ('mood_vibe', 0.5, {'moods': [], 'genres': []})
+
+    # =========================================================================
+    # execute() — full pipeline: intent → lookup → agents → response dict
+    # =========================================================================
+
+    def execute(self, prompt: str, use_api: bool = False) -> dict:
+        """
+        Full pipeline entry point. Returns a dict ready for GenerateResponse.
+
+        Local mode (default): keyword intent → local lookup → local agents.
+        API mode: Haiku intent → local lookup → LLM agents.
+        """
+        self.tracker.reset_for_request()
+
+        if use_api:
+            orch_result = self.process(prompt)
+            intent_type = orch_result.intent.intent_type.value
+            confidence = orch_result.intent.confidence
+            extracted = orch_result.intent.extracted or {}
+
+            if orch_result.clarification_needed:
+                return {
+                    "success": True,
+                    "intent": intent_type,
+                    "confidence": confidence,
+                    "clarification_needed": True,
+                    "clarification_question": orch_result.clarification_question,
+                }
+
+            local_data = orch_result.local_data or {}
+        else:
+            intent_type, confidence, extracted = self.detect_intent_local(prompt)
+            local_data = self._lookup_local(intent_type, extracted, prompt)
+
+        response = self._build_response(intent_type, confidence, extracted, local_data)
+
+        if use_api and local_data:
+            self._enhance_with_api(response, local_data)
+
+        summary = self.tracker.summary()
+        response["tokens_used"] = summary.get("total_tokens", 0)
+        response["cost_usd"] = summary.get("total_cost_usd", 0.0)
+
+        return response
+
+    def _lookup_local(self, intent_type: str, extracted: dict, prompt: str) -> dict:
+        """Execute local lookups based on intent type."""
+        local_data = {}
+
+        if intent_type in ('mood_vibe', 'theory_request'):
+            moods = extracted.get('moods', [])
+            genres = extracted.get('genres', [])
+
+            # Key priority: user-specified > genre default > mood default > fallback
+            user_key = extracted.get('key')
+            if user_key:
+                key_parts = user_key.split()
+                key_root = key_parts[0]
+                key_mode = key_parts[1] if len(key_parts) > 1 else 'minor'
+            else:
+                minor_genres = {'lo_fi', 'lofi', 'trap', 'hip_hop', 'emo_rap', 'ambient'}
+                major_genres = {'pop', 'edm', 'house', 'dance', 'k_pop', 'j_pop'}
+                genre_set = set(genres)
+
+                minor_moods = {'melancholic', 'sad', 'dark', 'nostalgic', 'aggressive'}
+                major_moods = {'happy', 'uplifting', 'epic', 'romantic'}
+
+                if genre_set & minor_genres:
+                    key_root, key_mode = 'A', 'minor'
+                elif genre_set & major_genres:
+                    key_root, key_mode = 'C', 'major'
+                elif set(moods) & minor_moods:
+                    key_root, key_mode = 'A', 'minor'
+                elif set(moods) & major_moods:
+                    key_root, key_mode = 'C', 'major'
+                else:
+                    key_root, key_mode = 'C', 'major'
+
+            progressions = []
+            for mood in moods:
+                progs = search_progressions(mood=mood, key_type=key_mode)
+                progressions.extend(progs)
+            for genre in genres:
+                progs = search_progressions(genre=genre, key_type=key_mode)
+                progressions.extend(progs)
+
+            if not progressions:
+                progs = search_progressions(key_type=key_mode)
+                if progs:
+                    progressions.extend(progs)
+                elif not moods and not genres:
+                    progressions = search_progressions(mood='melancholic')
+
+            seen = set()
+            unique = []
+            for p in progressions:
+                if p.name not in seen:
+                    seen.add(p.name)
+                    unique.append(p)
+
+            local_data['progressions'] = []
+            for prog in unique[:3]:
+                try:
+                    chords = get_progression_chords(prog.numerals, key_root, prog.key_type, octave=3)
+                    local_data['progressions'].append({
+                        'name': prog.name,
+                        'numerals': prog.numerals,
+                        'key': f'{key_root} {prog.key_type}',
+                        'chords': chords,
+                        'tempo_range': prog.tempo_range,
+                        'description': prog.description,
+                        'moods': prog.moods,
+                        'genres': prog.genres,
+                    })
+                except ValueError:
+                    pass
+
+        elif intent_type == 'drum_pattern':
+            genres = extracted.get('genres', ['trap'])
+            patterns = []
+            for genre in genres:
+                genre_patterns = get_drum_patterns_by_genre(genre)
+                patterns.extend(genre_patterns)
+
+            seen = set()
+            unique = []
+            for p in patterns:
+                if p.name not in seen:
+                    seen.add(p.name)
+                    unique.append(p)
+
+            local_data['drum_patterns'] = []
+            for pattern in unique[:3]:
+                local_data['drum_patterns'].append({
+                    'name': pattern.name,
+                    'description': pattern.description,
+                    'tempo_range': pattern.tempo_range,
+                    'swing': pattern.swing,
+                    'grid': pattern.to_grid(),
+                    'genres': pattern.genres,
+                })
+
+        elif intent_type == 'sound_engineering':
+            se_response = generate_sound_engineering_local(prompt)
+            if se_response:
+                local_data['sound_engineering_response'] = se_response
+
+        elif intent_type == 'artist_blend':
+            artists = extracted.get('artists', [])
+            if len(artists) >= 2:
+                blend_result = generate_artist_blend_local(artists[0], artists[1])
+                if blend_result:
+                    local_data['artist_blend'] = blend_result['artist_blend']
+                    if blend_result.get('progression'):
+                        local_data['progressions'] = [blend_result['progression']]
+
+        return local_data
+
+    @staticmethod
+    def _normalize_alternatives(alternatives: Optional[List[Dict]]) -> Optional[List[Dict]]:
+        """Normalize alternative labels and chord format for the API response."""
+        if not alternatives:
+            return alternatives
+        out: List[Dict] = []
+        for a in alternatives:
+            b = dict(a)
+            lab = b.get("label") or ""
+            b["label"] = lab.replace("_", " ") if isinstance(lab, str) else lab
+            ch = b.get("chords") or []
+            if ch and isinstance(ch[0], str):
+                b["chords"] = [{"name": x, "numeral": ""} for x in ch]
+            out.append(b)
+        return out
+
+    def _build_response(self, intent_type: str, confidence: float,
+                        extracted: dict, local_data: dict) -> dict:
+        """Assemble the response dict from local data and agent outputs."""
+        response = {
+            "success": True,
+            "intent": intent_type,
+            "confidence": confidence,
+            "key_was_specified": 'key' in extracted,
+        }
+
+        if not local_data:
+            return response
+
+        # --- Progressions ---
+        if "progressions" in local_data:
+            response["progressions"] = local_data["progressions"]
+
+            if local_data["progressions"]:
+                prog = local_data["progressions"][0]
+                validation_data = {
+                    "key": prog["key"],
+                    "chords": [
+                        {
+                            "numeral": c["numeral"],
+                            "name": c["name"],
+                            "notes": c["note_names"],
+                        }
+                        for c in prog["chords"]
+                    ]
+                }
+                validator = TheoryValidator()
+                validation_result = validator.validate_progression(validation_data)
+                response["validation"] = validation_result.to_dict()
+
+                response["production_steps"] = generate_chord_instructions_local(prog)
+                response["teaching_note"] = generate_progression_explanation_local(prog)
+
+                response["progression"] = prog
+                response["key"] = prog.get("key")
+                response["bpm"] = parse_bpm_from_tempo(
+                    prog.get("tempo_range"),
+                    prog.get("tempo_suggestion"),
+                )
+                g = prog.get("genres")
+                response["genre_context"] = (
+                    ", ".join(g) if isinstance(g, list) else (g if isinstance(g, str) else None)
+                )
+                response["progression_name"] = prog.get("name") or "–".join(
+                    prog.get("numerals") or []
+                )
+
+            theory_output = generate_theory_output_local(
+                local_data["progressions"],
+                intent_data=extracted,
+            )
+            if theory_output.get("alternatives"):
+                response["alternatives"] = self._normalize_alternatives(
+                    theory_output["alternatives"]
+                )
+            if theory_output.get("melody_direction"):
+                response["melody_direction"] = theory_output["melody_direction"]
+
+        # --- Drum patterns ---
+        if "drum_patterns" in local_data:
+            response["drum_patterns"] = local_data["drum_patterns"]
+
+            if local_data["drum_patterns"]:
+                pattern = local_data["drum_patterns"][0]
+
+                response["bpm"] = parse_bpm_from_tempo(
+                    pattern.get("tempo_range"),
+                    pattern.get("tempo_suggestion"),
+                )
+                g = pattern.get("genres")
+                response["genre_context"] = (
+                    ", ".join(g) if isinstance(g, list) else (g if isinstance(g, str) else None)
+                )
+                response["progression_name"] = pattern.get("name")
+
+                if not response.get("production_steps"):
+                    response["production_steps"] = generate_drum_instructions_local(pattern)
+                else:
+                    response["production_steps"] += "\n\n---\n\n" + generate_drum_instructions_local(pattern)
+
+                if not response.get("teaching_note"):
+                    response["teaching_note"] = generate_rhythm_explanation_local(pattern)
+                else:
+                    response["teaching_note"] += "\n\n---\n\n" + generate_rhythm_explanation_local(pattern)
+
+        # --- Sound engineering ---
+        if "sound_engineering_response" in local_data:
+            response["sound_engineering_response"] = local_data["sound_engineering_response"]
+
+        # --- Artist blend ---
+        if "artist_blend" in local_data:
+            response["artist_blend"] = local_data["artist_blend"]
+
+        return response
+
+    def _enhance_with_api(self, response: dict, local_data: dict) -> None:
+        """Overlay API-powered agent outputs when use_api is True."""
+        try:
+            production_agent = ProductionAgent(tracker=self.tracker)
+            production_result = production_agent.generate_from_local_data(
+                local_data,
+                user_level=self.user_profile.get("production_level", "beginner"),
+            )
+            if "chord_instructions" in production_result:
+                response["production_steps"] = production_result["chord_instructions"]["markdown"]
+
+            teaching_agent = TeachingAgent(tracker=self.tracker)
+            teaching_result = teaching_agent.explain_from_local_data(
+                local_data,
+                user_level=self.user_profile.get("theory_level", "rusty_intermediate"),
+            )
+            if "progression_explanation" in teaching_result:
+                response["teaching_note"] = teaching_result["progression_explanation"]["explanation"]
+
+        except Exception:
+            pass  # Fall back to local output already in response
+
+    # =========================================================================
+    # process() — API-mode entry point (Haiku intent detection)
+    # =========================================================================
 
     def process(self, user_input: str, session_history: Optional[List[Dict]] = None) -> OrchestratorResult:
         """
