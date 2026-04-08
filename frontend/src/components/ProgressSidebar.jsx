@@ -9,6 +9,35 @@ import styles from './ProgressSidebar.module.css';
 
 const DEFAULT_SONG = 'Untitled Session';
 
+function SessionInfoBlock({ infoKey, infoBpm, infoVibe, keyWasSpecified }) {
+  const bpmText = infoBpm != null && infoBpm !== '' ? `${infoBpm} BPM` : '—';
+  const vibeText = infoVibe != null && String(infoVibe).trim() !== '' ? String(infoVibe) : '—';
+
+  return (
+    <div className={styles.sessionInfo}>
+      <h2 className={styles.sessionInfoTitle}>Session info</h2>
+      <div className={styles.sessionRow}>
+        <div className={styles.sessionMetaLabel}>Key</div>
+        {infoKey != null && String(infoKey).trim() !== '' ? (
+          <div className={keyWasSpecified ? styles.sessionMetaValue : styles.sessionMetaValueMuted}>
+            {keyWasSpecified ? infoKey : `${infoKey} (suggested)`}
+          </div>
+        ) : (
+          <div className={styles.sessionMetaValue}>—</div>
+        )}
+      </div>
+      <div className={styles.sessionRow}>
+        <div className={styles.sessionMetaLabel}>BPM</div>
+        <div className={styles.sessionMetaValue}>{bpmText}</div>
+      </div>
+      <div className={styles.sessionRow}>
+        <div className={styles.sessionMetaLabel}>Vibe</div>
+        <div className={styles.sessionMetaValue}>{vibeText}</div>
+      </div>
+    </div>
+  );
+}
+
 function StageRow({ id, label, data, onSkipClick }) {
   const { status, value } = data || { status: 'pending', value: '' };
   const showSkip = status === 'active' || status === 'pending';
@@ -126,8 +155,14 @@ export default function ProgressSidebar({
   songName,
   onSongNameSaved,
   sessionMode,
+  infoKey,
+  infoBpm,
+  infoVibe,
+  keyWasSpecified,
   stages,
   suggestedText,
+  suggestedPrefill,
+  awaitingConfirmation,
   onSuggestedTry,
   onSkipConfirm,
 }) {
@@ -144,7 +179,8 @@ export default function ProgressSidebar({
     setSkipNote('');
   };
 
-  const decided = seq.filter((id) => stages[id]?.status === 'done');
+  const decided = seq.filter((id) => stages[id]?.status === 'done' && stages[id]?.confirmed);
+  const review = seq.filter((id) => stages[id]?.status === 'done' && !stages[id]?.confirmed);
   const skipped = seq.filter((id) => stages[id]?.status === 'skipped');
   const inProgress = seq.find((id) => stages[id]?.status === 'active');
   const upNext = seq.filter((id) => stages[id]?.status === 'pending');
@@ -152,6 +188,13 @@ export default function ProgressSidebar({
   return (
     <aside className={styles.sidebar}>
       <SongNameField sessionId={sessionId} songName={songName} onSaved={onSongNameSaved} />
+
+      <SessionInfoBlock
+        infoKey={infoKey}
+        infoBpm={infoBpm}
+        infoVibe={infoVibe}
+        keyWasSpecified={keyWasSpecified}
+      />
 
       <div className={styles.badge}>{MODE_BADGE_LABEL[sessionMode] || sessionMode}</div>
 
@@ -179,6 +222,20 @@ export default function ProgressSidebar({
         {skipped.map((id) => (
           <StageRow
             key={`sk-${id}`}
+            id={id}
+            label={STAGE_LABELS[id] || id}
+            data={stages[id]}
+            onSkipClick={() => {}}
+          />
+        ))}
+      </div>
+
+      <div className={styles.sectionLabel}>Review</div>
+      <div className={styles.block}>
+        {review.length === 0 ? <div className={styles.empty}>—</div> : null}
+        {review.map((id) => (
+          <StageRow
+            key={`rv-${id}`}
             id={id}
             label={STAGE_LABELS[id] || id}
             data={stages[id]}
@@ -238,10 +295,15 @@ export default function ProgressSidebar({
 
       <div className={styles.rule} />
       <div className={styles.suggested}>
-        <div className={styles.suggestedInner}>
+        <div
+          className={`${styles.suggestedInner} ${awaitingConfirmation ? styles.suggestedInnerConfirm : ''}`}
+        >
           <div className={styles.suggestedLabel}>Suggested next</div>
+          {awaitingConfirmation ? (
+            <div className={styles.keepHint}>Keep →</div>
+          ) : null}
           <div className={styles.suggestedText}>{suggestedText || 'Generate to see the next step.'}</div>
-          {suggestedText ? (
+          {suggestedText && suggestedPrefill?.trim() ? (
             <button type="button" className={styles.suggestedBtn} onClick={onSuggestedTry}>
               Try it →
             </button>

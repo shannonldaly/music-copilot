@@ -56,6 +56,54 @@
   color: #f0f0f0;
 }
 
+.sessionInfo {
+  margin-bottom: 10px;
+  padding: 10px 8px;
+  background: #141414;
+  border: 1px solid #252525;
+  border-radius: 2px;
+}
+
+.sessionInfoTitle {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #f5602a;
+  margin: 0 0 8px 0;
+}
+
+.sessionRow {
+  margin-bottom: 8px;
+}
+
+.sessionRow:last-child {
+  margin-bottom: 0;
+}
+
+.sessionMetaLabel {
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5a5a5a;
+  margin-bottom: 3px;
+}
+
+.sessionMetaValue {
+  font-size: 10px;
+  color: #e0e0e0;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.sessionMetaValueMuted {
+  font-size: 10px;
+  line-height: 1.35;
+  word-break: break-word;
+  opacity: 0.5;
+  color: #c8c8c8;
+}
+
 .topBlock {
   margin-bottom: 8px;
   margin-top: 4px;
@@ -303,6 +351,24 @@
     0 0 24px rgba(245, 96, 42, 0.18),
     0 8px 28px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.suggestedInnerConfirm {
+  box-shadow:
+    0 0 0 2px rgba(245, 96, 42, 0.55),
+    0 0 36px rgba(245, 96, 42, 0.3),
+    0 10px 36px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.keepHint {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #f5602a;
+  margin: 0 0 10px 0;
 }
 
 .suggestedLabel {

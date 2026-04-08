@@ -10,12 +10,18 @@ import {
 import { normalizeGenerateResponse } from './utils/normalize';
 import { playProgression, playDrumPattern, stopPlayback } from './utils/playback';
 import {
+  CHORDS_SESSION_START_SUGGESTED_TEXT,
   STAGE_SEQUENCES,
   applyApiToStages,
   buildContextPrefix,
+  confirmFirstAwaitingStage,
   createInitialStages,
+  firstAwaitingConfirmStage,
+  getConfirmSuggestion,
   getSuggestionForStage,
   nextSuggestedStage,
+  recomputeActive,
+  regenResetFromFirstAwaiting,
   skipStage,
 } from './sessionStages';
 import TopBar from './components/TopBar';
@@ -23,6 +29,8 @@ import AgentBar from './components/AgentBar';
 import SessionPanel from './components/SessionPanel';
 import TheoryPanel from './components/TheoryPanel';
 import ProductionPanel from './components/ProductionPanel';
+import SoundEngineeringPanel from './components/SoundEngineeringPanel';
+import ArtistBlendPanel from './components/ArtistBlendPanel';
 import InputBar from './components/InputBar';
 import SessionStartModal from './components/SessionStartModal';
 import ProgressSidebar from './components/ProgressSidebar';
@@ -77,6 +85,7 @@ export default function App() {
   const [stages, setStages] = useState(null);
   const [melodyIntroActive, setMelodyIntroActive] = useState(false);
   const sessionMelodyIntroUsedRef = useRef(false);
+  const [hasContentGeneration, setHasContentGeneration] = useState(false);
 
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
@@ -173,6 +182,7 @@ export default function App() {
       const nm = data.current_project?.name?.trim();
       setSongName(nm || 'Untitled Session');
       setStages(createInitialStages(data.session_mode || pendingMode));
+      setHasContentGeneration(false);
       setShowSessionModal(false);
       setError(null);
     } catch {
@@ -191,6 +201,7 @@ export default function App() {
     setAlternatives([]);
     setPrompt('');
     setExpandError(null);
+    setHasContentGeneration(false);
   };
 
   const handleGenerate = async () => {
@@ -239,6 +250,16 @@ export default function App() {
       if (stages && sessionMode && normalized && !normalized.clarification_only) {
         setStages((prev) => applyApiToStages(prev, sessionMode, data, normalized));
       }
+
+      if (normalized && !normalized.clarification_only) {
+        const progressed =
+          (normalized.mode === 'chords' && (normalized.chords?.length ?? 0) > 0) ||
+          (normalized.mode === 'drums' && normalized.drumPattern?.grid) ||
+          (normalized.sound_engineering_response != null &&
+            typeof normalized.sound_engineering_response === 'object') ||
+          (normalized.artist_blend != null && typeof normalized.artist_blend === 'object');
+        if (progressed) setHasContentGeneration(true);
+      }
     } catch (e) {
       setError(e.message || 'Request failed');
       setAgentStates(initialAgentStates());
@@ -251,21 +272,46 @@ export default function App() {
   const isDrumSession = model?.mode === 'drums';
   const drumGrid = model?.drumPattern?.grid;
 
+  const soundEngPayload = model?.sound_engineering_response;
+  const artistBlendPayload = model?.artist_blend;
+  const showSoundEngPanel =
+    !model?.clarification_only &&
+    soundEngPayload != null &&
+    typeof soundEngPayload === 'object';
+  const showArtistBlendPanel =
+    !model?.clarification_only &&
+    artistBlendPayload != null &&
+    typeof artistBlendPayload === 'object';
+
   const suggestedStageId = useMemo(() => {
     if (!stages || !sessionMode) return null;
     return nextSuggestedStage(stages, sessionMode);
   }, [stages, sessionMode]);
 
   const suggestedCopy = useMemo(() => {
-    if (!suggestedStageId || !sessionMode) {
-      return { text: '', prefill: '' };
+    const empty = { text: '', prefill: '', awaitingConfirmation: false };
+    if (!sessionMode) return empty;
+    const chordLike = sessionMode === 'chords' || sessionMode === 'full';
+    if (chordLike && !hasContentGeneration) {
+      return { text: CHORDS_SESSION_START_SUGGESTED_TEXT, prefill: '', awaitingConfirmation: false };
     }
+    if (!stages) return empty;
+    const awaiting = firstAwaitingConfirmStage(stages, sessionMode);
+    if (awaiting) {
+      return {
+        text: getConfirmSuggestion(sessionMode, awaiting),
+        prefill: '',
+        awaitingConfirmation: true,
+      };
+    }
+    if (!suggestedStageId) return empty;
     const { text, prefill } = getSuggestionForStage(sessionMode, suggestedStageId);
     return {
       text: personalizeSuggestion(text, model),
       prefill,
+      awaitingConfirmation: false,
     };
-  }, [suggestedStageId, sessionMode, model]);
+  }, [hasContentGeneration, suggestedStageId, sessionMode, model, stages]);
 
   const handleSuggestedTry = () => {
     if (suggestedCopy.prefill) setPrompt(suggestedCopy.prefill);
@@ -322,6 +368,27 @@ export default function App() {
     } catch (e) {
       setError(e.response?.data?.detail || e.message || 'Feedback failed');
     }
+  };
+
+  const handleKeep = async () => {
+    if (stages && sessionMode) {
+      setStages((prev) => confirmFirstAwaitingStage(prev, sessionMode));
+    }
+    await sendFeedback('thumbs_up');
+  };
+
+  const handleRegen = async () => {
+    if (stages && sessionMode) {
+      setStages((prev) => regenResetFromFirstAwaiting(prev, sessionMode));
+    }
+    await sendFeedback('regenerate');
+  };
+
+  const handleVary = async () => {
+    if (stages && sessionMode) {
+      setStages((prev) => regenResetFromFirstAwaiting(prev, sessionMode));
+    }
+    await sendFeedback('regenerate');
   };
 
   const handleAlsoTryPick = async (alt) => {
@@ -393,8 +460,10 @@ export default function App() {
               ...next.progression,
               status: 'done',
               value: alt.progression_name || next.progression.value,
+              confirmed: false,
             };
           }
+          recomputeActive(next, seq);
           return next;
         });
       }
@@ -424,8 +493,14 @@ export default function App() {
             songName={songName}
             onSongNameSaved={setSongName}
             sessionMode={sessionMode}
+            infoKey={model?.key ?? null}
+            infoBpm={model?.bpm}
+            infoVibe={model?.genre_context ?? null}
+            keyWasSpecified={model?.key_was_specified === true}
             stages={stages}
             suggestedText={suggestedCopy.text}
+            suggestedPrefill={suggestedCopy.prefill}
+            awaitingConfirmation={suggestedCopy.awaitingConfirmation}
             onSuggestedTry={handleSuggestedTry}
             onSkipConfirm={handleSkipConfirm}
           />
@@ -486,18 +561,30 @@ export default function App() {
               />
               <ProductionPanel productionMarkdown={model?.production_steps} teachingNote={model?.teaching_note} />
             </div>
+
+            {showSoundEngPanel || showArtistBlendPanel ? (
+              <div className={styles.panelsSecondary}>
+                {showSoundEngPanel ? (
+                  <SoundEngineeringPanel data={soundEngPayload} />
+                ) : null}
+                {showArtistBlendPanel ? <ArtistBlendPanel data={artistBlendPayload} /> : null}
+              </div>
+            ) : null}
           </main>
 
-          <InputBar
-            value={prompt}
-            onChange={setPrompt}
-            onGenerate={handleGenerate}
-            onKeep={() => sendFeedback('thumbs_up')}
-            onRegen={() => sendFeedback('regenerate')}
-            onVary={() => sendFeedback('regenerate')}
-            disabled={!sessionId}
-            loading={loading}
-          />
+          {!showSessionModal ? (
+            <InputBar
+              value={prompt}
+              onChange={setPrompt}
+              onGenerate={handleGenerate}
+              onKeep={handleKeep}
+              onRegen={handleRegen}
+              onVary={handleVary}
+              disabled={!sessionId}
+              loading={loading}
+              awaitingConfirmation={suggestedCopy.awaitingConfirmation}
+            />
+          ) : null}
         </div>
       </div>
     </div>

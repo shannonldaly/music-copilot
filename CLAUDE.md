@@ -13,51 +13,9 @@ This is simultaneously:
 
 ---
 
-## How Claude Code Should Operate (Agent Management Protocol)
+## Ownership Map — What Claude Code Can Decide Alone vs. What Needs Shannon
 
-### Standing Rules — Apply to Every Session
-1. **No task starts without a definition of done.** If the task brief below
-doesn't define what finished looks like, ask before writing any code.
-2. **One thing at a time.** Complete and verify each component before
-starting the next. Never work on multiple components in parallel.
-3. **Keep deliverables small.** One agent, one file, one feature at a time.
-The smaller the output, the easier to verify correctly.
-4. **Confirm before proceeding.** After each component is built,
-report what was done and wait for confirmation before moving forward.
-5. **Verify before accepting.** Tests passing is not definition of done.
-Report exactly what was built, what files were changed, and what
-the user should check manually.
-
----
-
-### Task Brief Template (Fill This In At The Start of Every Session)
-When Shannon starts a Claude Code session, ask her to confirm or fill in:
-
-**Goal**: One sentence — what exists when this session is done?
-
-**Constraints**: Libraries to use, files not to touch, performance limits.
-
-**Non-goals**: What NOT to do, even if it seems helpful.
-- Don't refactor working code unless explicitly asked
-- Don't add new dependencies without asking first
-- Don't modify CLAUDE.md without being asked
-- Don't run the frontend — Cursor handles that on port 5173
-
-**Definition of Done**: How will we verify this worked?
-- What tests should pass?
-- What should Shannon see in the browser?
-- What files should exist that didn't before?
-
-**Escalation Triggers**: Stop and ask Shannon instead of proceeding if:
-- The task requires touching more than 3 files not mentioned in the brief
-- A non-trivial architectural decision needs to be made
-- Something is broken that wasn't broken before
-- The task is taking more steps than expected
-- Any user data, API keys, or security-related code is involved
-
----
-
-### Ownership Map — What Claude Code Can Decide Alone vs. What Needs Shannon
+**Note**: Don't run the frontend — Cursor handles that on port 5173.
 
 **Claude Code owns (decide and execute without asking):**
 - Writing new Python agent files following existing patterns
@@ -83,25 +41,6 @@ When Shannon starts a Claude Code session, ask her to confirm or fill in:
 - Anything involving user data or privacy
 - Any decision that can't easily be undone
 - Any change to git history or branch structure
-
----
-
-### Delegation Level for This Project
-Currently operating at **Level 2** — Claude Code executes tasks and
-reports back for verification before moving to the next task.
-
-Move to Level 3 (execute a full phase autonomously) only after:
-- Two consecutive phases completed without requiring rollback
-- Shannon explicitly says "run Phase X autonomously"
-
----
-
-### Session Startup Checklist
-At the start of every Claude Code session:
-1. Read CLAUDE.md fully before doing anything
-2. Run `git status` and report any uncommitted changes
-3. Confirm which Phase is next based on the build sequencing section
-4. Ask Shannon to confirm the Task Brief before writing any code
 
 ---
 
@@ -323,7 +262,7 @@ If `passed: false`, the Validator returns the errors to the Theory Agent for cor
 
 ---
 
-## The 6 Things Not to Forget
+## The 5 Things Not to Forget
 
 These were explicitly identified as missing from the initial spec. Every one of them must be addressed before v1 ships.
 
@@ -371,12 +310,7 @@ Over time this becomes the taste model. In v1 it's just stored data. In v2 the O
 
 **The Teaching Agent also adapts**: if the user consistently skips the theory explanation (no engagement, moves straight to Ableton steps), Teaching Agent shortens explanations. If they ask follow-up theory questions, it goes deeper.
 
-### 5. CLAUDE.md is the Bridge
-This file is what connects planning (Claude.ai Projects) to building (Claude Code). Every time a new Claude Code session starts, it reads this file first. Every architectural decision, every agent spec, every "don't forget" item lives here.
-
-**Maintenance rule**: When a decision changes during the build, update this file immediately. Don't let it go stale. It's the source of truth.
-
-### 6. API Cost Awareness
+### 5. API Cost Awareness
 Seven agents on every request is expensive. The Orchestrator enforces routing discipline.
 
 **Rules**:
@@ -537,5 +471,42 @@ API docs available at: `http://localhost:8000/docs`
 
 ---
 
-*Last updated: 2026-03-31 — Phase 2 complete. Enharmonic spelling fixed at theory layer. All backend tests passing (A minor, F# minor, Bb minor, C# major, D major, Eb major, G minor, drums). PATCH /api/session live. Phase 3 (Ableton MCP) is next.*
+*Last updated: 2026-04-08 — Phase 2 complete. Architect skill onboarding run complete. ARCHITECTURE.md, BACKLOG.md, and decisions/ populated. Phase 3 in progress.*
 *Next update trigger: Any agent spec change, any architectural decision, any new dependency added*
+
+---
+
+## Phase 3 Definition of Done — Before Moving to Phase 4 MCP
+
+Phase 3 is not complete until ALL of the following pass:
+
+### Features
+- [ ] Sound Engineering Agent surfaced in UI with structured panel
+- [ ] Artist blend intent surfaced in UI with attribution columns
+- [ ] UX design sprint complete — Rubato branding, piano roll legibility, project create/open/resume, session history, onboarding flow, Keep confirmation loop
+- [ ] Architect skill onboarding run complete (done ✓)
+- [ ] ARCHITECTURE.md, BACKLOG.md, and decisions/ populated (done ✓)
+
+### Testing (minimum viable test suite)
+- [ ] Contract tests passing for all 7 agents — verify input/output shapes match what both sides expect
+- [ ] Integration tests passing for /api/generate across all 5 intent types (mood_vibe, drum_pattern, sound_engineering, artist_blend, artist_reference)
+- [ ] Unit tests passing for: TheoryValidator, detect_intent_local, key inference priority logic, enharmonic spelling
+- [ ] All existing manual curl verification tests converted to automated pytest suite
+- [ ] Regression check: all tests pass after every change in Phase 3
+
+### Operational Readiness Baseline
+- [ ] Structured logging: every agent logs what it received, returned, and how long it took
+- [ ] Health check endpoint (/api/health) actually verifies dependencies — Anthropic API reachable, music21 loaded
+- [ ] Error handling: every agent has a defined fallback — no silent nulls reaching the frontend
+- [ ] Secrets audit: no API keys in code or committed to git, .env.example exists
+- [ ] README updated: a new person can clone and run the project from these instructions alone
+- [ ] API documentation accurate at /docs
+
+### Architecture
+- [ ] Orchestrator refactor complete (Option B+ — per architect decision log)
+- [ ] Teaching Agent wired to API (always, not local fallback)
+- [ ] Sound Engineering Agent API fallback for unknown topics
+- [ ] SE Agent contract mismatch resolved (local and API return same shape)
+- [ ] BACKLOG.md and decisions/ up to date with all Phase 3 decisions
+
+Only after all boxes are checked: begin Phase 4 MCP Integration.

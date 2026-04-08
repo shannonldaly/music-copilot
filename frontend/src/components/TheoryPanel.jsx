@@ -22,6 +22,8 @@ export default function TheoryPanel({
   expandLoading,
   expandError,
   melodyDirection,
+  melodyIntroActive = false,
+  onMelodyIntroComplete = () => {},
 }) {
   const list = (chords || []).slice(0, 8);
   const isDrums = mode === 'drums';

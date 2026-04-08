@@ -9,13 +9,16 @@ export default function InputBar({
   onVary,
   disabled,
   loading,
+  awaitingConfirmation,
 }) {
+  const confirm = !!awaitingConfirmation;
+
   return (
-    <div className={styles.bar}>
+    <div className={`${styles.bar} ${confirm ? styles.barConfirm : ''}`}>
       <input
         className={styles.input}
         type="text"
-        placeholder="Describe a vibe, key, or ask for a progression…"
+        placeholder="Describe a vibe, genre, or what you want to make…"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
@@ -26,14 +29,29 @@ export default function InputBar({
         }}
         disabled={disabled || loading}
       />
-      <div className={styles.actions}>
-        <button type="button" className={styles.btn} onClick={onKeep} disabled={disabled}>
+      <div className={`${styles.actions} ${confirm ? styles.actionsConfirm : ''}`}>
+        <button
+          type="button"
+          className={`${styles.btn} ${confirm ? styles.btnKeepLead : ''}`}
+          onClick={onKeep}
+          disabled={disabled}
+        >
           Keep
         </button>
-        <button type="button" className={styles.btn} onClick={onRegen} disabled={disabled}>
+        <button
+          type="button"
+          className={`${styles.btn} ${confirm ? styles.btnSecondaryLead : ''}`}
+          onClick={onRegen}
+          disabled={disabled}
+        >
           Regen
         </button>
-        <button type="button" className={styles.btn} onClick={onVary} disabled={disabled}>
+        <button
+          type="button"
+          className={`${styles.btn} ${confirm ? styles.btnSecondaryLead : ''}`}
+          onClick={onVary}
+          disabled={disabled}
+        >
           Vary
         </button>
         <button

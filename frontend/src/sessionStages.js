@@ -1,5 +1,9 @@
 /** Phase 2 — progress sidebar stage definitions per session mode */
 
+/** Shown in Suggested next before the first successful generation (chords + full session modes). */
+export const CHORDS_SESSION_START_SUGGESTED_TEXT =
+  'Describe what you want — a mood, genre, artist reference, or specific key. Try: melancholic lo-fi in A minor, or something like Massive Attack.';
+
 export const SESSION_MODES = {
   CHORDS: 'chords',
   DRUMS: 'drums',
@@ -14,23 +18,22 @@ export const MODE_BADGE_LABEL = {
   full: 'FULL SESSION',
 };
 
+/** Chords + full: user-facing stages only (key / BPM / vibe are Session Info metadata). */
 export const STAGE_SEQUENCES = {
-  chords: ['keyMode', 'bpm', 'progression', 'vibe', 'melodyDir', 'bass', 'drums', 'mix'],
+  chords: ['progression', 'melodyDir', 'bass', 'drums', 'mix'],
   drums: ['genreFeel', 'bpm', 'pattern', 'splice', 'mix'],
   mixing: ['section', 'targetVibe', 'eq', 'automation'],
-  full: ['keyMode', 'bpm', 'progression', 'vibe', 'melodyDir', 'bass', 'drums', 'mix'],
+  full: ['progression', 'melodyDir', 'bass', 'drums', 'mix'],
 };
 
 export const STAGE_LABELS = {
-  keyMode: 'Key + Mode',
-  bpm: 'BPM',
   progression: 'Progression',
-  vibe: 'Vibe',
   melodyDir: 'Melody Direction',
   bass: 'Bass Line',
   drums: 'Drums',
   mix: 'Mix + Automation',
   genreFeel: 'Genre / Feel',
+  bpm: 'BPM',
   pattern: 'Pattern',
   splice: 'Splice Search Terms',
   section: 'Section',
@@ -39,39 +42,63 @@ export const STAGE_LABELS = {
   automation: 'Automation plan',
 };
 
+/** Suggested next while output exists but user has not clicked Keep yet (first unconfirmed stage in order). */
+export const CONFIRM_SUGGESTIONS = {
+  chords: {
+    progression:
+      'Happy with this progression? Hit Keep to lock it in, or try an alternative below.',
+    melodyDir: 'Happy with this melody direction? Hit Keep to lock it in, or ask for changes in the input.',
+    bass: 'Happy with this bass guidance? Hit Keep to lock it in, or try Regen.',
+    drums: 'Happy with this drums guidance? Hit Keep to lock it in, or try Regen.',
+    mix: 'Happy with this mix guidance? Hit Keep to lock it in, or try Regen.',
+  },
+  drums: {
+    genreFeel: 'Happy with this genre / feel? Hit Keep to lock it in.',
+    bpm: 'Happy with this tempo? Hit Keep to lock it in.',
+    pattern: 'Happy with this pattern? Hit Keep to lock it in.',
+    splice: 'Happy with these Splice notes? Hit Keep to lock it in.',
+    mix: 'Happy with this mix guidance? Hit Keep to lock it in.',
+  },
+  mixing: {
+    section: 'Happy with this section focus? Hit Keep to lock it in.',
+    targetVibe: 'Happy with this vibe read? Hit Keep to lock it in.',
+    eq: 'Happy with these EQ priorities? Hit Keep to lock it in.',
+    automation: 'Happy with this automation plan? Hit Keep to lock it in.',
+  },
+  full: {},
+};
+
+export function getConfirmSuggestion(mode, stageId) {
+  const m = mode === SESSION_MODES.FULL ? SESSION_MODES.CHORDS : mode;
+  const table =
+    m === SESSION_MODES.CHORDS || m === SESSION_MODES.FULL ? CONFIRM_SUGGESTIONS.chords : CONFIRM_SUGGESTIONS[m];
+  return (
+    table?.[stageId] ||
+    'Happy with this step? Hit Keep to lock it in, or use Regen / Vary to try again.'
+  );
+}
+
 export const SUGGESTIONS = {
   chords: {
-    keyMode: {
-      text: 'Lock in a key and mode — try naming a key (e.g. A minor) and a vibe.',
-      prefill: 'Give me a lo-fi progression in A minor',
-    },
-    bpm: {
-      text: 'Set a tempo — try mentioning BPM or “slow / fast”.',
-      prefill: 'Around 85 BPM for this vibe',
-    },
     progression: {
+      text: 'Refine this harmony — ask for a different progression, reharmonization, or voicing.',
+      prefill: 'Give me an alternative progression in the same key',
+    },
+    melodyDir: {
       text: 'Want a melodic direction over {key} {progression}?',
       prefill: 'Suggest a melodic direction over this progression',
     },
-    vibe: {
-      text: 'Narrow the genre or mood for tighter suggestions.',
-      prefill: 'More melancholic and sparse',
-    },
-    melodyDir: {
+    bass: {
       text: 'Now add a bass line — match the harmony you have.',
       prefill: 'Give me a lo-fi bass line to match this progression',
     },
-    bass: {
+    drums: {
       text: 'Ready for drums? Match the groove to your chords.',
       prefill: 'Give me a drum pattern that matches this vibe',
     },
-    drums: {
+    mix: {
       text: 'Shape the mix — EQ, space, and movement.',
       prefill: 'How should I EQ and space these chords in Ableton?',
-    },
-    mix: {
-      text: 'Refine automation or final balance when you are ready.',
-      prefill: 'Sidechain and mix bus tips for this track',
     },
   },
   drums: {
@@ -90,7 +117,7 @@ export const SUGGESTIONS = {
     eq: { text: 'Prioritize frequency roles.', prefill: 'EQ priorities for bass vs chords' },
     automation: { text: 'Plan filter and level rides.', prefill: 'Automation plan for build into drop' },
   },
-  full: {}, // same keys as chords — reuse chords map
+  full: {},
 };
 
 export function getSuggestionForStage(mode, stageId) {
@@ -99,17 +126,22 @@ export function getSuggestionForStage(mode, stageId) {
   return table?.[stageId] || { text: 'Try a follow-up in the input bar.', prefill: '' };
 }
 
+function emptyStage(status, value = '') {
+  return { status, value, confirmed: false };
+}
+
 export function createInitialStages(mode) {
   const seq = STAGE_SEQUENCES[mode] || STAGE_SEQUENCES.chords;
   const o = {};
   seq.forEach((id, i) => {
-    o[id] = { status: i === 0 ? 'active' : 'pending', value: '' };
+    o[id] = emptyStage(i === 0 ? 'active' : 'pending', '');
   });
   return o;
 }
 
 /**
- * Apply /api/generate fields to stage state (done + values).
+ * Apply /api/generate fields to stage state.
+ * Each filled stage is `done` with confirmed: false until the user clicks Keep.
  */
 export function applyApiToStages(prev, mode, apiPayload, normalized) {
   const seq = STAGE_SEQUENCES[mode] || STAGE_SEQUENCES.chords;
@@ -117,7 +149,7 @@ export function applyApiToStages(prev, mode, apiPayload, normalized) {
   const setDone = (id, value) => {
     if (!seq.includes(id)) return;
     if (next[id]?.status === 'skipped') return;
-    next[id] = { ...next[id], status: 'done', value: value != null ? String(value) : '' };
+    next[id] = { ...next[id], status: 'done', value: value != null ? String(value) : '', confirmed: false };
   };
 
   if (mode === SESSION_MODES.DRUMS) {
@@ -133,15 +165,8 @@ export function applyApiToStages(prev, mode, apiPayload, normalized) {
   } else if (mode === SESSION_MODES.MIXING) {
     if (apiPayload?.intent) setDone('section', apiPayload.intent);
   } else {
-    if (normalized?.key || apiPayload?.key) setDone('keyMode', normalized?.key || apiPayload?.key);
-    if (normalized?.bpm != null || apiPayload?.bpm != null) {
-      setDone('bpm', normalized?.bpm ?? apiPayload?.bpm);
-    }
     if (normalized?.progression_name || apiPayload?.progression_name) {
       setDone('progression', normalized?.progression_name || apiPayload?.progression_name);
-    }
-    if (normalized?.genre_context || apiPayload?.genre_context) {
-      setDone('vibe', normalized?.genre_context || apiPayload?.genre_context);
     }
     const md = apiPayload?.melody_direction || normalized?.melody_direction;
     if (md && (typeof md === 'object' ? Object.keys(md).length : String(md).length)) {
@@ -153,15 +178,32 @@ export function applyApiToStages(prev, mode, apiPayload, normalized) {
   return next;
 }
 
+/**
+ * Recalculate active/pending: any `done` with confirmed false blocks later non-done stages from becoming active.
+ */
 export function recomputeActive(stages, seq) {
-  let found = false;
+  let blocked = false;
+  let assignedActive = false;
+
   for (const id of seq) {
     const s = stages[id];
     if (!s) continue;
-    if (s.status === 'skipped' || s.status === 'done') continue;
-    if (!found) {
+
+    if (s.status === 'skipped') continue;
+
+    if (s.status === 'done') {
+      if (!s.confirmed) blocked = true;
+      continue;
+    }
+
+    if (blocked) {
+      s.status = 'pending';
+      continue;
+    }
+
+    if (!assignedActive) {
       s.status = 'active';
-      found = true;
+      assignedActive = true;
     } else {
       s.status = 'pending';
     }
@@ -174,7 +216,52 @@ export function skipStage(stages, seq, stageId, note) {
   next[stageId] = {
     status: 'skipped',
     value: note != null && String(note).trim() ? String(note).trim() : 'Skipped',
+    confirmed: true,
   };
+  recomputeActive(next, seq);
+  return next;
+}
+
+/** First stage in order that is done but not yet confirmed (user must Keep). */
+export function firstAwaitingConfirmStage(stages, mode) {
+  const seq = STAGE_SEQUENCES[mode] || STAGE_SEQUENCES.chords;
+  for (const id of seq) {
+    const s = stages[id];
+    if (s?.status === 'done' && !s.confirmed) return id;
+  }
+  return null;
+}
+
+/** Mark the first unconfirmed done stage as confirmed and recompute active. */
+export function confirmFirstAwaitingStage(stages, mode) {
+  const seq = STAGE_SEQUENCES[mode] || STAGE_SEQUENCES.chords;
+  const next = { ...stages };
+  const target = firstAwaitingConfirmStage(next, mode);
+  if (!target) return next;
+  next[target] = { ...next[target], confirmed: true };
+  recomputeActive(next, seq);
+  return next;
+}
+
+/**
+ * Regen/Vary: reset first awaiting stage to active (cleared) and clear later non-skipped stages.
+ */
+export function regenResetFromFirstAwaiting(stages, mode) {
+  const seq = STAGE_SEQUENCES[mode] || STAGE_SEQUENCES.chords;
+  const first = firstAwaitingConfirmStage(stages, mode);
+  if (!first) return stages;
+  const idx = seq.indexOf(first);
+  if (idx < 0) return stages;
+  const next = { ...stages };
+  for (let i = idx; i < seq.length; i++) {
+    const id = seq[i];
+    if (next[id]?.status === 'skipped') continue;
+    if (i === idx) {
+      next[id] = emptyStage('active', '');
+    } else {
+      next[id] = emptyStage('pending', '');
+    }
+  }
   recomputeActive(next, seq);
   return next;
 }
@@ -190,7 +277,9 @@ export function buildContextPrefix(stages, seq) {
   return `[Session context]\n${parts.join('\n')}\n\n`;
 }
 
+/** Next stage for normal suggestions (after all outputs are confirmed or skipped). */
 export function nextSuggestedStage(stages, mode) {
+  if (firstAwaitingConfirmStage(stages, mode)) return null;
   const seq = STAGE_SEQUENCES[mode] || STAGE_SEQUENCES.chords;
   for (const id of seq) {
     const s = stages[id];

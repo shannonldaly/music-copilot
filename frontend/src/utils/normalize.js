@@ -19,12 +19,19 @@ export function parseBpmFromText(text) {
 export function normalizeGenerateResponse(data) {
   if (!data) return null;
 
+  const extraFields = {
+    sound_engineering_response: data.sound_engineering_response ?? null,
+    artist_blend: data.artist_blend ?? null,
+    key_was_specified: data.key_was_specified === true,
+  };
+
   if (data.clarification_needed) {
     return {
       clarification_only: true,
       clarification_question: data.clarification_question,
       tokens_used: data.tokens_used,
       cost_usd: data.cost_usd,
+      ...extraFields,
     };
   }
 
@@ -71,6 +78,7 @@ export function normalizeGenerateResponse(data) {
       intent: data.intent,
       alternatives: data.alternatives ?? [],
       melody_direction: data.melody_direction ?? null,
+      ...extraFields,
     };
   }
 
@@ -84,6 +92,7 @@ export function normalizeGenerateResponse(data) {
       cost_usd: data.cost_usd,
       alternatives: data.alternatives ?? [],
       melody_direction: data.melody_direction ?? null,
+      ...extraFields,
     };
   }
 
@@ -129,6 +138,7 @@ export function normalizeGenerateResponse(data) {
     intent: data.intent,
     alternatives: data.alternatives ?? [],
     melody_direction: data.melody_direction ?? null,
+    ...extraFields,
   };
 }
 
