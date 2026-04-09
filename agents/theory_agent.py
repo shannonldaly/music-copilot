@@ -448,6 +448,23 @@ MUSIC THEORY CONTEXT:
         }
         start_note = scale_fifths.get(root, "E4")
 
+        # Keyboard-relative descriptions (middle C = C4)
+        _keyboard_desc = {
+            "C4": "middle C",
+            "D4": "one white key above middle C",
+            "E4": "two white keys above middle C",
+            "F4": "three white keys above middle C",
+            "F#4": "the black key between F and G above middle C",
+            "G4": "a 5th above middle C (right hand, thumb on C, pinky on G)",
+            "A4": "the A above middle C — concert tuning pitch",
+            "B4": "just below the C one octave above middle C",
+            "C5": "one octave above middle C",
+            "D5": "two white keys above the C one octave up",
+            "Bb4": "the black key between A and B above middle C",
+            "Eb4": "the black key between D and E above middle C",
+        }
+        keyboard_hint = _keyboard_desc.get(start_note, "middle of the keyboard")
+
         # Determine contour based on mood
         if any(m in moods for m in ["melancholic", "sad", "dark"]):
             contour = "descending with brief upward reaches"
@@ -488,7 +505,7 @@ MUSIC THEORY CONTEXT:
 
         return {
             "start_note": start_note,
-            "start_note_context": f"The 5th of {key_str} — a stable, neutral launching point that doesn't commit to happy or sad",
+            "start_note_context": f"{start_note} — {keyboard_hint} on your keyboard. The 5th of {key_str}, a stable neutral launching point",
             "contour": contour,
             "rhythm_feel": rhythm_feel,
             "avoid_on_strong_beats": avoid_notes,

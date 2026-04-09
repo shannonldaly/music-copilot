@@ -317,24 +317,38 @@ def generate_chord_instructions_local(
     Use this for simple cases where LLM creativity isn't needed.
     """
     key = progression_data.get("key", "C major")
-    tempo = progression_data.get("tempo_suggestion", "120 BPM")
     chords = progression_data.get("chords", [])
     name = progression_data.get("progression_name", progression_data.get("name", "Progression"))
+
+    # Resolve BPM: tempo_range tuple > tempo_suggestion string > fallback
+    tempo_range = progression_data.get("tempo_range")
+    tempo_suggestion = progression_data.get("tempo_suggestion")
+    if tempo_range and isinstance(tempo_range, (list, tuple)) and len(tempo_range) >= 2:
+        bpm = (tempo_range[0] + tempo_range[1]) // 2
+        tempo_display = f"{tempo_range[0]}-{tempo_range[1]} BPM"
+    elif tempo_suggestion:
+        tempo_display = str(tempo_suggestion)
+        # Extract number from strings like "85 BPM"
+        digits = ''.join(c for c in str(tempo_suggestion) if c.isdigit())
+        bpm = int(digits) if digits else 120
+    else:
+        bpm = 120
+        tempo_display = "120 BPM"
 
     lines = [
         f"## Building This in {daw}",
         "",
         f"**Progression**: {name}",
         f"**Key**: {key}",
-        f"**Tempo**: {tempo}",
+        f"**Tempo**: {tempo_display}",
         "",
         "### Track Setup",
         "1. Create a new MIDI track (Cmd+Shift+T)",
         "   `# MCP v2: create_midi_track()`",
         "2. Load an instrument: Instruments → Keys → Grand Piano",
         "   `# MCP v2: load_instrument('grand_piano')`",
-        f"3. Set tempo to {tempo.split('-')[0].strip() if '-' in str(tempo) else tempo}",
-        "   `# MCP v2: set_tempo(85)`",
+        f"3. Set tempo to {bpm} BPM",
+        f"   `# MCP v2: set_tempo({bpm})`",
         "",
         "### Entering the Notes",
         "1. Double-click the clip slot to create a MIDI clip",
