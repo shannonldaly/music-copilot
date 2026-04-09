@@ -1,0 +1,25 @@
+:root {
+  --color-bg-base: #161a1a;
+  --color-bg-surface: #1e2422;
+  --color-bg-panel: #242820;
+  --color-bg-hover: #2a2f2c;
+  --color-accent-primary: #3a9e8a;
+  --color-accent-primary-muted: rgba(58, 158, 138, 0.15);
+  --color-accent-secondary: #e8c4a8;
+  --color-accent-secondary-muted: rgba(232, 196, 168, 0.15);
+  --color-text-primary: #f0ede8;
+  --color-text-secondary: rgba(240, 237, 232, 0.6);
+  --color-text-tertiary: rgba(240, 237, 232, 0.35);
+  --color-border-subtle: rgba(240, 237, 232, 0.08);
+  --color-border-medium: rgba(240, 237, 232, 0.15);
+  --font-primary: 'DM Sans', -apple-system, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, monospace;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+}

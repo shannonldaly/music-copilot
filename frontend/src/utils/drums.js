@@ -13,7 +13,7 @@ export function buildDrumRows(grid) {
   ].map(Number));
 
   const rows = [
-    { id: 'kick', label: 'KICK', steps: kick, color: '#f5602a' },
+    { id: 'kick', label: 'KICK', steps: kick, color: '#3a9e8a' },
     { id: 'snare', label: 'SNR', steps: snare, color: '#4a9eff' },
     { id: 'hat', label: 'HAT', steps: hat, color: '#a3a3a3' },
   ];

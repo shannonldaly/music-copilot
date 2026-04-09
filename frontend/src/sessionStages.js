@@ -48,9 +48,9 @@ export const CONFIRM_SUGGESTIONS = {
     progression:
       'Happy with this progression? Hit Keep to lock it in, or try an alternative below.',
     melodyDir: 'Happy with this melody direction? Hit Keep to lock it in, or ask for changes in the input.',
-    bass: 'Happy with this bass guidance? Hit Keep to lock it in, or try Regen.',
-    drums: 'Happy with this drums guidance? Hit Keep to lock it in, or try Regen.',
-    mix: 'Happy with this mix guidance? Hit Keep to lock it in, or try Regen.',
+    bass: 'Happy with this bass guidance? Hit Keep to lock it in, or use Try Again.',
+    drums: 'Happy with this drums guidance? Hit Keep to lock it in, or use Try Again.',
+    mix: 'Happy with this mix guidance? Hit Keep to lock it in, or use Try Again.',
   },
   drums: {
     genreFeel: 'Happy with this genre / feel? Hit Keep to lock it in.',
@@ -74,7 +74,7 @@ export function getConfirmSuggestion(mode, stageId) {
     m === SESSION_MODES.CHORDS || m === SESSION_MODES.FULL ? CONFIRM_SUGGESTIONS.chords : CONFIRM_SUGGESTIONS[m];
   return (
     table?.[stageId] ||
-    'Happy with this step? Hit Keep to lock it in, or use Regen / Vary to try again.'
+    'Happy with this step? Hit Keep to lock it in, or use Try Again / Vary to try again.'
   );
 }
 
@@ -169,7 +169,14 @@ export function applyApiToStages(prev, mode, apiPayload, normalized) {
       setDone('progression', normalized?.progression_name || apiPayload?.progression_name);
     }
     const md = apiPayload?.melody_direction || normalized?.melody_direction;
-    if (md && (typeof md === 'object' ? Object.keys(md).length : String(md).length)) {
+    const prog = next.progression;
+    const progressionLocked =
+      prog && prog.status === 'done' && prog.confirmed;
+    if (
+      progressionLocked &&
+      md &&
+      (typeof md === 'object' ? Object.keys(md).length : String(md).length)
+    ) {
       setDone('melodyDir', 'Defined');
     }
   }
@@ -244,6 +251,30 @@ export function confirmFirstAwaitingStage(stages, mode) {
 }
 
 /**
+ * Reopen a confirmed stage for revision: that stage becomes done but unconfirmed;
+ * all later non-skipped stages reset to pending. Used from sidebar history → Try Again.
+ */
+export function reopenStageForRevision(stages, mode, stageId) {
+  const seq = STAGE_SEQUENCES[mode] || STAGE_SEQUENCES.chords;
+  const idx = seq.indexOf(stageId);
+  if (idx < 0) return stages;
+  const next = { ...stages };
+  for (let i = idx; i < seq.length; i++) {
+    const id = seq[i];
+    const cur = next[id];
+    if (!cur || cur.status === 'skipped') continue;
+    if (i === idx) {
+      const value = cur.value ?? '';
+      next[id] = { status: 'done', value, confirmed: false };
+    } else {
+      next[id] = emptyStage('pending', '');
+    }
+  }
+  recomputeActive(next, seq);
+  return next;
+}
+
+/**
  * Regen/Vary: reset first awaiting stage to active (cleared) and clear later non-skipped stages.
  */
 export function regenResetFromFirstAwaiting(stages, mode) {
@@ -288,4 +319,45 @@ export function nextSuggestedStage(stages, mode) {
     return id;
   }
   return null;
+}
+
+/** Large headline shown in the post-Keep focus moment. */
+export const STAGE_FOCUS_HEADLINES = {
+  progression: 'Progression locked in',
+  melodyDir: "Now let's define your melody",
+  bass: "Now let's build a bass line",
+  drums: "Now let's add drums",
+  mix: "Now let's shape the mix",
+  genreFeel: "Now let's dial in the groove",
+  bpm: "Let's set the tempo",
+  pattern: "Now let's refine the pattern",
+  splice: 'Next: Splice search terms',
+  section: 'Next: your mix section',
+  targetVibe: 'Next: target vibe',
+  eq: 'Next: EQ priorities',
+  automation: 'Next: automation plan',
+};
+
+export function getNextStageHeadline(stageId) {
+  if (!stageId) return 'Ready for the next step';
+  return STAGE_FOCUS_HEADLINES[stageId] || `Next: ${STAGE_LABELS[stageId] || stageId}`;
+}
+
+/** Post-Keep overlay main heading: next stage by human-readable name. */
+export function getPostKeepWorkOnHeadline(stageId) {
+  if (!stageId) return "Now let's work on the next step";
+  const name = STAGE_LABELS[stageId] || stageId;
+  return `Now let's work on ${name}`;
+}
+
+/** True when every non-skipped stage is done and confirmed. */
+export function allStagesComplete(stages, mode) {
+  if (!stages || !mode) return false;
+  const seq = STAGE_SEQUENCES[mode] || STAGE_SEQUENCES.chords;
+  for (const id of seq) {
+    const s = stages[id];
+    if (!s || s.status === 'skipped') continue;
+    if (s.status !== 'done' || !s.confirmed) return false;
+  }
+  return true;
 }

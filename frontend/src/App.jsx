@@ -11,14 +11,19 @@ import { normalizeGenerateResponse } from './utils/normalize';
 import { playProgression, playDrumPattern, stopPlayback } from './utils/playback';
 import {
   CHORDS_SESSION_START_SUGGESTED_TEXT,
+  MODE_BADGE_LABEL,
+  STAGE_LABELS,
   STAGE_SEQUENCES,
+  allStagesComplete,
   applyApiToStages,
   buildContextPrefix,
   confirmFirstAwaitingStage,
   createInitialStages,
   firstAwaitingConfirmStage,
   getConfirmSuggestion,
+  getPostKeepWorkOnHeadline,
   getSuggestionForStage,
+  reopenStageForRevision,
   nextSuggestedStage,
   recomputeActive,
   regenResetFromFirstAwaiting,
@@ -26,14 +31,13 @@ import {
 } from './sessionStages';
 import TopBar from './components/TopBar';
 import AgentBar from './components/AgentBar';
-import SessionPanel from './components/SessionPanel';
-import TheoryPanel from './components/TheoryPanel';
-import ProductionPanel from './components/ProductionPanel';
+import MainWorkspace from './components/MainWorkspace';
 import SoundEngineeringPanel from './components/SoundEngineeringPanel';
 import ArtistBlendPanel from './components/ArtistBlendPanel';
 import InputBar from './components/InputBar';
 import SessionStartModal from './components/SessionStartModal';
 import ProgressSidebar from './components/ProgressSidebar';
+import WelcomeScreen from './components/WelcomeScreen';
 import styles from './App.module.css';
 
 function initialAgentStates() {
@@ -77,7 +81,10 @@ function personalizeSuggestion(text, model) {
 }
 
 export default function App() {
-  const [showSessionModal, setShowSessionModal] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [welcomeExiting, setWelcomeExiting] = useState(false);
+  const [showSessionModal, setShowSessionModal] = useState(false);
+  const [modalEnterAnim, setModalEnterAnim] = useState(false);
   const [pendingMode, setPendingMode] = useState(null);
   const [sessionMode, setSessionMode] = useState(null);
   const [sessionId, setSessionId] = useState(null);
@@ -106,7 +113,21 @@ export default function App() {
 
   const [isPlaying, setIsPlaying] = useState(false);
 
+  const [postKeepFocus, setPostKeepFocus] = useState(null);
+  const [workspaceFadeKeep, setWorkspaceFadeKeep] = useState(false);
+  const [keepChordFlash, setKeepChordFlash] = useState(false);
+  const [justConfirmedStageId, setJustConfirmedStageId] = useState(null);
+  const [historyStageId, setHistoryStageId] = useState(null);
+  const [stageSnapshots, setStageSnapshots] = useState({});
+
   const seq = STAGE_SEQUENCES[sessionMode] || STAGE_SEQUENCES.chords;
+
+  useEffect(() => {
+    if (!showSessionModal) return undefined;
+    setModalEnterAnim(true);
+    const id = setTimeout(() => setModalEnterAnim(false), 450);
+    return () => clearTimeout(id);
+  }, [showSessionModal]);
 
   useEffect(() => {
     sessionMelodyIntroUsedRef.current = false;
@@ -173,6 +194,15 @@ export default function App() {
     });
   }, []);
 
+  const handleWelcomeStart = () => {
+    setWelcomeExiting(true);
+    setTimeout(() => {
+      setShowWelcome(false);
+      setWelcomeExiting(false);
+      setShowSessionModal(true);
+    }, 400);
+  };
+
   const handleModalContinue = async () => {
     if (!pendingMode) return;
     try {
@@ -183,6 +213,8 @@ export default function App() {
       setSongName(nm || 'Untitled Session');
       setStages(createInitialStages(data.session_mode || pendingMode));
       setHasContentGeneration(false);
+      setHistoryStageId(null);
+      setStageSnapshots({});
       setShowSessionModal(false);
       setError(null);
     } catch {
@@ -191,6 +223,8 @@ export default function App() {
   };
 
   const handleNewSession = () => {
+    setShowWelcome(false);
+    setWelcomeExiting(false);
     setShowSessionModal(true);
     setPendingMode(null);
     setSessionId(null);
@@ -202,6 +236,12 @@ export default function App() {
     setPrompt('');
     setExpandError(null);
     setHasContentGeneration(false);
+    setPostKeepFocus(null);
+    setWorkspaceFadeKeep(false);
+    setKeepChordFlash(false);
+    setJustConfirmedStageId(null);
+    setHistoryStageId(null);
+    setStageSnapshots({});
   };
 
   const handleGenerate = async () => {
@@ -260,6 +300,10 @@ export default function App() {
           (normalized.artist_blend != null && typeof normalized.artist_blend === 'object');
         if (progressed) setHasContentGeneration(true);
       }
+
+      setPostKeepFocus(null);
+      setWorkspaceFadeKeep(false);
+      setHistoryStageId(null);
     } catch (e) {
       setError(e.message || 'Request failed');
       setAgentStates(initialAgentStates());
@@ -268,9 +312,18 @@ export default function App() {
     }
   };
 
-  const chords = model?.chords || [];
-  const isDrumSession = model?.mode === 'drums';
-  const drumGrid = model?.drumPattern?.grid;
+  const displayModel =
+    historyStageId && stageSnapshots[historyStageId]?.model
+      ? stageSnapshots[historyStageId].model
+      : model;
+  const displayAlternatives =
+    historyStageId && stageSnapshots[historyStageId]
+      ? stageSnapshots[historyStageId].alternatives ?? []
+      : alternatives;
+
+  const chords = displayModel?.chords || [];
+  const isDrumSession = displayModel?.mode === 'drums';
+  const drumGrid = displayModel?.drumPattern?.grid;
 
   const soundEngPayload = model?.sound_engineering_response;
   const artistBlendPayload = model?.artist_blend;
@@ -287,6 +340,19 @@ export default function App() {
     if (!stages || !sessionMode) return null;
     return nextSuggestedStage(stages, sessionMode);
   }, [stages, sessionMode]);
+
+  const sessionComplete =
+    !!sessionId &&
+    !!sessionMode &&
+    !!stages &&
+    allStagesComplete(stages, sessionMode);
+
+  const completionProgression =
+    stages?.progression?.value || model?.progression_name || '—';
+  const completionDrum =
+    sessionMode === 'drums'
+      ? stages?.pattern?.value || model?.progression_name || '—'
+      : '—';
 
   const suggestedCopy = useMemo(() => {
     const empty = { text: '', prefill: '', awaitingConfirmation: false };
@@ -371,27 +437,100 @@ export default function App() {
   };
 
   const handleKeep = async () => {
-    if (stages && sessionMode) {
-      setStages((prev) => confirmFirstAwaitingStage(prev, sessionMode));
+    if (historyStageId) {
+      setHistoryStageId(null);
+      return;
     }
+
+    const awaiting = stages && sessionMode ? firstAwaitingConfirmStage(stages, sessionMode) : null;
+
+    if (awaiting && model) {
+      setStageSnapshots((prev) => ({
+        ...prev,
+        [awaiting]: { model: JSON.parse(JSON.stringify(model)), alternatives: [...alternatives] },
+      }));
+    }
+
+    let nextStagesSnapshot = stages;
+    if (stages && sessionMode) {
+      nextStagesSnapshot = confirmFirstAwaitingStage(stages, sessionMode);
+      if (
+        awaiting === 'progression' &&
+        model?.melody_direction &&
+        nextStagesSnapshot.melodyDir?.status === 'pending'
+      ) {
+        nextStagesSnapshot = {
+          ...nextStagesSnapshot,
+          melodyDir: { status: 'done', value: 'Defined', confirmed: false },
+        };
+        recomputeActive(nextStagesSnapshot, seq);
+      }
+      setStages(nextStagesSnapshot);
+    }
+
+    setPrompt('');
+
     await sendFeedback('thumbs_up');
+
+    if (!sessionMode || !nextStagesSnapshot) return;
+
+    if (allStagesComplete(nextStagesSnapshot, sessionMode)) {
+      setKeepChordFlash(true);
+      if (awaiting) setJustConfirmedStageId(awaiting);
+      setTimeout(() => setKeepChordFlash(false), 350);
+      setTimeout(() => setJustConfirmedStageId(null), 500);
+      return;
+    }
+
+    const nextId = nextSuggestedStage(nextStagesSnapshot, sessionMode);
+    const { text } = getSuggestionForStage(sessionMode, nextId);
+    const guidance = personalizeSuggestion(text, model);
+    const headline = getPostKeepWorkOnHeadline(nextId);
+
+    setKeepChordFlash(true);
+    if (awaiting) setJustConfirmedStageId(awaiting);
+
+    setTimeout(() => setKeepChordFlash(false), 350);
+    setTimeout(() => setWorkspaceFadeKeep(true), 300);
+    setTimeout(() => {
+      setPostKeepFocus({ headline, guidance });
+      setWorkspaceFadeKeep(false);
+      setJustConfirmedStageId(null);
+    }, 600);
   };
 
   const handleRegen = async () => {
-    if (stages && sessionMode) {
+    setPostKeepFocus(null);
+    setWorkspaceFadeKeep(false);
+    if (historyStageId && stages && sessionMode) {
+      const snap = stageSnapshots[historyStageId];
+      setStages((prev) => reopenStageForRevision(prev, sessionMode, historyStageId));
+      if (snap?.model) setModel(snap.model);
+      if (snap?.alternatives) setAlternatives(snap.alternatives);
+      setHistoryStageId(null);
+    } else if (stages && sessionMode) {
       setStages((prev) => regenResetFromFirstAwaiting(prev, sessionMode));
     }
     await sendFeedback('regenerate');
   };
 
   const handleVary = async () => {
-    if (stages && sessionMode) {
+    setPostKeepFocus(null);
+    setWorkspaceFadeKeep(false);
+    if (historyStageId && stages && sessionMode) {
+      const snap = stageSnapshots[historyStageId];
+      setStages((prev) => reopenStageForRevision(prev, sessionMode, historyStageId));
+      if (snap?.model) setModel(snap.model);
+      if (snap?.alternatives) setAlternatives(snap.alternatives);
+      setHistoryStageId(null);
+    } else if (stages && sessionMode) {
       setStages((prev) => regenResetFromFirstAwaiting(prev, sessionMode));
     }
     await sendFeedback('regenerate');
   };
 
   const handleAlsoTryPick = async (alt) => {
+    setHistoryStageId(null);
     if (!model || !sessionId || expandLoading || model.mode !== 'chords') return;
 
     const names = chordNamesFromAlt(alt);
@@ -479,13 +618,6 @@ export default function App() {
 
   const shell = (
     <div className={styles.root}>
-      <SessionStartModal
-        open={showSessionModal}
-        selected={pendingMode}
-        onSelect={setPendingMode}
-        onContinue={handleModalContinue}
-      />
-
       <div className={styles.bodyRow}>
         {sessionId && sessionMode && stages ? (
           <ProgressSidebar
@@ -503,6 +635,13 @@ export default function App() {
             awaitingConfirmation={suggestedCopy.awaitingConfirmation}
             onSuggestedTry={handleSuggestedTry}
             onSkipConfirm={handleSkipConfirm}
+            justConfirmedStageId={justConfirmedStageId}
+            hasStageSnapshot={(id) => !!stageSnapshots[id]?.model}
+            onConfirmedStageClick={(id) => {
+              if (!stageSnapshots[id]?.model) return;
+              setHistoryStageId(id);
+              setPostKeepFocus(null);
+            }}
           />
         ) : null}
 
@@ -518,61 +657,102 @@ export default function App() {
             onNewSession={handleNewSession}
             audioLoading={expandLoading}
           />
-          <AgentBar states={agentStates} />
+          {!showSessionModal ? <AgentBar states={agentStates} /> : null}
 
-          <main className={styles.workspace}>
+          <main
+            className={`${styles.workspace} ${workspaceFadeKeep ? styles.workspaceFade : ''}`}
+          >
             {error ? <div className={styles.error}>{error}</div> : null}
 
             {model?.clarification_only ? (
               <div className={styles.clarify}>{model.clarification_question}</div>
             ) : null}
 
-            <div className={styles.panels}>
-              <SessionPanel
-                mode={model?.mode}
-                chords={chords}
-                drumGrid={drumGrid}
-                bpm={bpm}
-                progressionName={model?.progression_name}
-                keyName={model?.key}
-                genreContext={model?.genre_context}
-                rollLoading={expandLoading && !isDrumSession}
-              />
-              <TheoryPanel
-                sessionId={sessionId}
-                mode={model?.mode}
-                chords={chords}
-                drumPattern={model?.drumPattern}
-                keyName={model?.key}
-                scale={model?.scale}
-                progressionName={model?.progression_name}
-                theoryExplanation={model?.theory_explanation}
-                voiceLeadingNotes={model?.voice_leading_notes}
-                validation={model?.validation}
-                validationBadge={model?.validationBadge}
-                genreContext={model?.genre_context}
-                alsoTryAlternatives={alternatives}
-                onAlsoTryPick={handleAlsoTryPick}
-                expandLoading={expandLoading}
-                expandError={expandError}
-                melodyDirection={model?.melody_direction}
-                melodyIntroActive={melodyIntroActive}
-                onMelodyIntroComplete={handleMelodyIntroComplete}
-              />
-              <ProductionPanel productionMarkdown={model?.production_steps} teachingNote={model?.teaching_note} />
-            </div>
-
-            {showSoundEngPanel || showArtistBlendPanel ? (
-              <div className={styles.panelsSecondary}>
-                {showSoundEngPanel ? (
-                  <SoundEngineeringPanel data={soundEngPayload} />
-                ) : null}
-                {showArtistBlendPanel ? <ArtistBlendPanel data={artistBlendPayload} /> : null}
+            {sessionComplete ? (
+              <div className={styles.completionWrap}>
+                <div className={styles.completionWordmark}>Rubato</div>
+                <h2 className={styles.completionTitle}>Blueprint complete</h2>
+                <ul className={styles.completionList}>
+                  <li>
+                    <span className={styles.completionLabel}>Key</span>
+                    <span className={styles.completionValue}>{model?.key || '—'}</span>
+                  </li>
+                  <li>
+                    <span className={styles.completionLabel}>BPM</span>
+                    <span className={styles.completionValue}>
+                      {model?.bpm != null ? `${model.bpm}` : `${bpm}`}
+                    </span>
+                  </li>
+                  <li>
+                    <span className={styles.completionLabel}>Progression</span>
+                    <span className={styles.completionValue}>{completionProgression}</span>
+                  </li>
+                  <li>
+                    <span className={styles.completionLabel}>Drum pattern</span>
+                    <span className={styles.completionValue}>{completionDrum}</span>
+                  </li>
+                </ul>
+                <button
+                  type="button"
+                  className={styles.openAbleton}
+                  onClick={() => console.log('MCP not connected yet')}
+                >
+                  Open in Ableton
+                </button>
+                <p className={styles.completionHint}>Ableton integration coming soon</p>
               </div>
+            ) : null}
+
+            {!model?.clarification_only && !sessionComplete && postKeepFocus ? (
+              <div className={styles.nextStageOverlay}>
+                <div className={styles.wordmarkSm}>Rubato</div>
+                <h2 className={styles.nextHeadline}>{postKeepFocus.headline}</h2>
+                <p className={styles.nextGuidance}>{postKeepFocus.guidance}</p>
+              </div>
+            ) : null}
+
+            {!model?.clarification_only && !sessionComplete && !postKeepFocus ? (
+              <>
+                <div className={styles.workspaceMainScroll}>
+                  <MainWorkspace
+                    sessionId={sessionId}
+                    sessionMode={sessionMode}
+                    modeLabel={sessionMode ? MODE_BADGE_LABEL[sessionMode] || sessionMode : ''}
+                    suggestedText={
+                      suggestedCopy.text?.trim() || 'Describe what you want in the input below.'
+                    }
+                    onExamplePrompt={setPrompt}
+                    hasContentGeneration={hasContentGeneration}
+                    chords={chords}
+                    model={displayModel}
+                    alternatives={displayAlternatives}
+                    onAlsoTryPick={handleAlsoTryPick}
+                    expandLoading={expandLoading}
+                    expandError={expandError}
+                    melodyIntroActive={melodyIntroActive}
+                    onMelodyIntroComplete={handleMelodyIntroComplete}
+                    keepChordFlash={keepChordFlash}
+                    historyStageId={historyStageId}
+                    historyStageLabel={
+                      historyStageId ? STAGE_LABELS[historyStageId] || historyStageId : ''
+                    }
+                    onExitHistory={() => setHistoryStageId(null)}
+                  />
+                </div>
+
+                {showSoundEngPanel || showArtistBlendPanel ? (
+                  <div className={styles.panelsSecondary}>
+                    {showSoundEngPanel ? (
+                      <SoundEngineeringPanel data={soundEngPayload} />
+                    ) : null}
+                    {showArtistBlendPanel ? <ArtistBlendPanel data={artistBlendPayload} /> : null}
+                  </div>
+                ) : null}
+              </>
             ) : null}
           </main>
 
-          {!showSessionModal ? (
+          {!showSessionModal && !showWelcome ? (
             <InputBar
               value={prompt}
               onChange={setPrompt}
@@ -582,11 +762,29 @@ export default function App() {
               onVary={handleVary}
               disabled={!sessionId}
               loading={loading}
-              awaitingConfirmation={suggestedCopy.awaitingConfirmation}
+              awaitingConfirmation={suggestedCopy.awaitingConfirmation || !!historyStageId}
+              prominent={!!postKeepFocus}
+              onDismissPostKeepOverlay={
+                postKeepFocus ? () => setPostKeepFocus(null) : undefined
+              }
             />
           ) : null}
         </div>
       </div>
+
+      <SessionStartModal
+        open={showSessionModal}
+        selected={pendingMode}
+        onSelect={setPendingMode}
+        onContinue={handleModalContinue}
+        animateIn={modalEnterAnim}
+      />
+
+      <WelcomeScreen
+        visible={showWelcome}
+        exiting={welcomeExiting}
+        onStart={handleWelcomeStart}
+      />
     </div>
   );
 

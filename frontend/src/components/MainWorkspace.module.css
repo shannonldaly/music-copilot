@@ -1,0 +1,397 @@
+/* Empty state */
+.emptyRoot {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl) var(--space-lg);
+  min-height: 0;
+}
+
+.modeTag {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  margin: 0 0 var(--space-md) 0;
+}
+
+.guidance {
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  text-align: center;
+  max-width: 36rem;
+  margin: 0 0 var(--space-lg) 0;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  justify-content: center;
+  max-width: 40rem;
+}
+
+.pill {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.pill:hover {
+  color: var(--color-text-secondary);
+  border-color: var(--color-border-medium);
+  background: var(--color-bg-hover);
+}
+
+/* Content column */
+.contentRoot {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.historyBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.historyBannerText {
+  margin: 0;
+  flex: 1;
+  min-width: 12rem;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+.historyExit {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-medium);
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.historyExit:hover {
+  border-color: var(--color-accent-primary);
+  color: var(--color-accent-primary);
+}
+
+.expandErr {
+  font-size: 13px;
+  color: var(--color-accent-primary);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.expandLoading {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  margin: calc(-1 * var(--space-md)) 0 0 0;
+}
+
+.chordRow {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-md);
+  overflow-x: auto;
+  padding-bottom: var(--space-xs);
+  scrollbar-gutter: stable;
+}
+
+.validationRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  margin-top: calc(-1 * var(--space-sm));
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-text-tertiary);
+}
+
+.ok {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-accent-primary);
+}
+
+.fail {
+  font-size: 12px;
+  font-weight: 500;
+  color: #c94d22;
+}
+
+.neutral {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.alsoTryWrap {
+  margin: 0 calc(-1 * var(--space-xs));
+}
+
+/* Theory / voice blocks (only when populated) */
+.proseBlock {
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+}
+
+.proseLabel {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  margin: 0 0 var(--space-sm) 0;
+}
+
+.prose {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.prose p {
+  margin: 0 0 0.5em 0;
+}
+
+.prose p:last-child {
+  margin-bottom: 0;
+}
+
+.prose strong {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.voiceBody {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.voiceBulletList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.voiceBullet {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  margin: 0 0 0.4em 0;
+}
+
+.voiceBullet:last-child {
+  margin-bottom: 0;
+}
+
+/* Teaching note (Teaching Agent) */
+.teachPanel {
+  background: var(--color-accent-secondary-muted);
+  border: 1px solid var(--color-border-subtle);
+  border-left: 3px solid var(--color-accent-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+}
+
+.teachBody {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.teachBody p {
+  margin: 0 0 0.45em 0;
+}
+
+.teachBody p:last-child {
+  margin-bottom: 0;
+}
+
+.teachBody strong {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* Ableton steps collapsible */
+.abletonShell {
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.abletonToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  background: var(--color-bg-surface);
+  border: none;
+  border-bottom: 1px solid var(--color-border-subtle);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.abletonToggle:hover {
+  background: var(--color-bg-hover);
+}
+
+.abletonChevron {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.abletonBody {
+  padding: var(--space-md);
+}
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.step {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  margin-bottom: var(--space-sm);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.stepNum {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-accent-primary);
+  min-width: 1.5em;
+}
+
+.stepText {
+  flex: 1;
+}
+
+.stepsEmpty {
+  font-size: 14px;
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+
+/* Drum grid (from session view, no piano roll) */
+.drumBlock {
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+}
+
+.drumSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stepHeader {
+  display: grid;
+  grid-template-columns: 44px repeat(16, 1fr);
+  gap: 2px;
+  align-items: center;
+}
+
+.stepCorner {
+  width: 44px;
+}
+
+.stepIdx {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  text-align: center;
+}
+
+.drumRow {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.drumLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.drumSteps {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 2px;
+}
+
+.drumCell {
+  aspect-ratio: 1;
+  min-height: 18px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+}

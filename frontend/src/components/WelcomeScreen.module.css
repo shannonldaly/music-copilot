@@ -1,0 +1,81 @@
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-base);
+  animation: welcomeIn 0.45s ease both;
+}
+
+.exiting {
+  animation: welcomeOut 0.4s ease both;
+}
+
+@keyframes welcomeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes welcomeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.inner {
+  text-align: center;
+  padding: var(--space-xl);
+}
+
+.noteIcon {
+  display: block;
+  margin: 0 auto 16px;
+  color: var(--color-accent-primary);
+}
+
+.wordmark {
+  margin: 0 0 var(--space-md) 0;
+  font-size: 44px;
+  font-weight: 600;
+  color: var(--color-accent-primary);
+  letter-spacing: 0.02em;
+}
+
+.tagline {
+  margin: 0 0 var(--space-xl) 0;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+}
+
+.startBtn {
+  font-size: 16px;
+  font-weight: 600;
+  padding: 16px 36px;
+  background: var(--color-accent-primary);
+  color: var(--color-text-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    filter 0.15s ease,
+    transform 0.15s ease;
+}
+
+.startBtn:hover {
+  filter: brightness(1.06);
+}
+
+.startBtn:active {
+  transform: translateY(1px);
+}

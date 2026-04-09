@@ -15,7 +15,6 @@ function SessionInfoBlock({ infoKey, infoBpm, infoVibe, keyWasSpecified }) {
 
   return (
     <div className={styles.sessionInfo}>
-      <h2 className={styles.sessionInfoTitle}>Session info</h2>
       <div className={styles.sessionRow}>
         <div className={styles.sessionMetaLabel}>Key</div>
         {infoKey != null && String(infoKey).trim() !== '' ? (
@@ -38,33 +37,91 @@ function SessionInfoBlock({ infoKey, infoBpm, infoVibe, keyWasSpecified }) {
   );
 }
 
-function StageRow({ id, label, data, onSkipClick }) {
+function StageRow({
+  id,
+  label,
+  data,
+  onSkipClick,
+  isActive,
+  confirmFlash,
+  historyClickable,
+  onConfirmedStageClick,
+}) {
   const { status, value } = data || { status: 'pending', value: '' };
   const showSkip = status === 'active' || status === 'pending';
-  const ledClass =
-    status === 'done'
-      ? styles.ledDone
-      : status === 'active'
-        ? styles.ledActive
-        : status === 'skipped'
-          ? styles.ledSkip
-          : styles.ledPending;
-  const textClass =
-    status === 'done'
-      ? styles.textDone
-      : status === 'active'
-        ? styles.textActive
-        : status === 'skipped'
-          ? styles.textSkip
-          : styles.textPending;
+  const doneConfirmed = status === 'done' && data?.confirmed;
+  const doneReview = status === 'done' && !data?.confirmed;
+  const rowNavigable = !!(doneConfirmed && historyClickable && onConfirmedStageClick);
+
+  const rowClass = [
+    styles.stageRow,
+    isActive ? styles.stageRowActive : '',
+    confirmFlash ? styles.stageRowConfirmFlash : '',
+    rowNavigable ? styles.stageRowNavigable : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const handleRowKeyDown = (e) => {
+    if (!rowNavigable) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onConfirmedStageClick(id);
+    }
+  };
 
   return (
-    <div className={styles.stageRow}>
+    <div
+      className={rowClass}
+      role={rowNavigable ? 'button' : undefined}
+      tabIndex={rowNavigable ? 0 : undefined}
+      onClick={rowNavigable ? () => onConfirmedStageClick(id) : undefined}
+      onKeyDown={rowNavigable ? handleRowKeyDown : undefined}
+    >
       <div className={styles.stageHead}>
-        <span className={ledClass} aria-hidden />
-        <span className={textClass}>{label}</span>
+        {doneConfirmed ? (
+          <span className={styles.ledDone} aria-hidden>
+            <svg width={12} height={12} viewBox="0 0 24 24" fill="none">
+              <path
+                d="M20 6L9 17l-5-5"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        ) : doneReview ? (
+          <span className={styles.ledReview} aria-hidden />
+        ) : status === 'skipped' ? (
+          <span className={styles.ledSkip} aria-hidden />
+        ) : isActive ? (
+          <span className={styles.ledActive} aria-hidden />
+        ) : (
+          <span className={styles.ledPending} aria-hidden />
+        )}
+        <span
+          className={
+            doneConfirmed
+              ? styles.textDone
+              : isActive
+                ? styles.textActive
+                : status === 'skipped'
+                  ? styles.textSkip
+                  : styles.textPending
+          }
+        >
+          {label}
+        </span>
         {showSkip ? (
-          <button type="button" className={styles.skipBtn} onClick={() => onSkipClick(id)}>
+          <button
+            type="button"
+            className={styles.skipBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSkipClick(id);
+            }}
+          >
             Skip
           </button>
         ) : (
@@ -121,7 +178,6 @@ function SongNameField({ sessionId, songName, onSaved }) {
 
   return (
     <div className={styles.songBlock}>
-      <div className={styles.songLabel}>Song</div>
       {editing ? (
         <input
           ref={inputRef}
@@ -134,7 +190,7 @@ function SongNameField({ sessionId, songName, onSaved }) {
             if (e.key === 'Escape') cancel();
           }}
           disabled={saving}
-          aria-label="Song name"
+          aria-label="Session name"
         />
       ) : (
         <button
@@ -165,6 +221,9 @@ export default function ProgressSidebar({
   awaitingConfirmation,
   onSuggestedTry,
   onSkipConfirm,
+  justConfirmedStageId,
+  hasStageSnapshot,
+  onConfirmedStageClick,
 }) {
   const [skipFor, setSkipFor] = useState(null);
   const [skipNote, setSkipNote] = useState('');
@@ -179,15 +238,13 @@ export default function ProgressSidebar({
     setSkipNote('');
   };
 
-  const decided = seq.filter((id) => stages[id]?.status === 'done' && stages[id]?.confirmed);
-  const review = seq.filter((id) => stages[id]?.status === 'done' && !stages[id]?.confirmed);
-  const skipped = seq.filter((id) => stages[id]?.status === 'skipped');
   const inProgress = seq.find((id) => stages[id]?.status === 'active');
-  const upNext = seq.filter((id) => stages[id]?.status === 'pending');
 
   return (
     <aside className={styles.sidebar}>
       <SongNameField sessionId={sessionId} songName={songName} onSaved={onSongNameSaved} />
+
+      <div className={styles.modePill}>{MODE_BADGE_LABEL[sessionMode] || sessionMode}</div>
 
       <SessionInfoBlock
         infoKey={infoKey}
@@ -196,81 +253,33 @@ export default function ProgressSidebar({
         keyWasSpecified={keyWasSpecified}
       />
 
-      <div className={styles.badge}>{MODE_BADGE_LABEL[sessionMode] || sessionMode}</div>
+      <div className={styles.sectionLabel}>Stages</div>
 
-      <div className={styles.topBlock}>
-        <div className={styles.header}>Session tracker</div>
-        <p className={styles.purpose}>
-          Live map of this session — see what is locked in, what you are on now, and what is next.
-        </p>
-      </div>
-
-      <div className={styles.rule} />
-
-      <div className={styles.sectionLabel}>Decided</div>
       <div className={styles.block}>
-        {decided.length === 0 && skipped.length === 0 ? <div className={styles.empty}>—</div> : null}
-        {decided.map((id) => (
-          <StageRow
-            key={id}
-            id={id}
-            label={STAGE_LABELS[id] || id}
-            data={stages[id]}
-            onSkipClick={() => {}}
-          />
-        ))}
-        {skipped.map((id) => (
-          <StageRow
-            key={`sk-${id}`}
-            id={id}
-            label={STAGE_LABELS[id] || id}
-            data={stages[id]}
-            onSkipClick={() => {}}
-          />
-        ))}
-      </div>
-
-      <div className={styles.sectionLabel}>Review</div>
-      <div className={styles.block}>
-        {review.length === 0 ? <div className={styles.empty}>—</div> : null}
-        {review.map((id) => (
-          <StageRow
-            key={`rv-${id}`}
-            id={id}
-            label={STAGE_LABELS[id] || id}
-            data={stages[id]}
-            onSkipClick={() => {}}
-          />
-        ))}
-      </div>
-
-      <div className={styles.sectionLabel}>In Progress</div>
-      <div className={styles.block}>
-        {inProgress ? (
-          <StageRow
-            key={inProgress}
-            id={inProgress}
-            label={STAGE_LABELS[inProgress] || inProgress}
-            data={stages[inProgress]}
-            onSkipClick={setSkipFor}
-          />
-        ) : (
-          <div className={styles.empty}>—</div>
-        )}
-      </div>
-
-      <div className={styles.sectionLabel}>Up Next</div>
-      <div className={styles.block}>
-        {upNext.length === 0 ? <div className={styles.empty}>—</div> : null}
-        {upNext.map((id) => (
-          <StageRow
-            key={id}
-            id={id}
-            label={STAGE_LABELS[id] || id}
-            data={stages[id]}
-            onSkipClick={setSkipFor}
-          />
-        ))}
+        {seq.every((id) => {
+          const s = stages[id];
+          return !s || (s.status === 'pending' && !s.value);
+        }) ? (
+          <div className={styles.empty}>No steps yet</div>
+        ) : null}
+        {seq.map((id) => {
+          const s = stages[id];
+          if (!s) return null;
+          const showSkip = s.status === 'active' || s.status === 'pending';
+          return (
+            <StageRow
+              key={id}
+              id={id}
+              label={STAGE_LABELS[id] || id}
+              data={s}
+              onSkipClick={showSkip ? setSkipFor : () => {}}
+              isActive={id === inProgress}
+              confirmFlash={justConfirmedStageId === id}
+              historyClickable={hasStageSnapshot?.(id)}
+              onConfirmedStageClick={onConfirmedStageClick}
+            />
+          );
+        })}
       </div>
 
       {skipFor ? (
@@ -294,6 +303,7 @@ export default function ProgressSidebar({
       ) : null}
 
       <div className={styles.rule} />
+
       <div className={styles.suggested}>
         <div
           className={`${styles.suggestedInner} ${awaitingConfirmation ? styles.suggestedInnerConfirm : ''}`}
@@ -305,7 +315,7 @@ export default function ProgressSidebar({
           <div className={styles.suggestedText}>{suggestedText || 'Generate to see the next step.'}</div>
           {suggestedText && suggestedPrefill?.trim() ? (
             <button type="button" className={styles.suggestedBtn} onClick={onSuggestedTry}>
-              Try it →
+              Try it
             </button>
           ) : null}
         </div>

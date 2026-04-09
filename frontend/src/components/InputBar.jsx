@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import styles from './InputBar.module.css';
 
 export default function InputBar({
@@ -10,18 +11,43 @@ export default function InputBar({
   disabled,
   loading,
   awaitingConfirmation,
+  prominent = false,
+  onDismissPostKeepOverlay,
 }) {
   const confirm = !!awaitingConfirmation;
+  const overlayDismissRef = useRef(false);
+
+  useEffect(() => {
+    overlayDismissRef.current = false;
+  }, [onDismissPostKeepOverlay]);
+
+  const tryDismissOverlay = () => {
+    if (!onDismissPostKeepOverlay || overlayDismissRef.current) return;
+    overlayDismissRef.current = true;
+    onDismissPostKeepOverlay();
+  };
 
   return (
-    <div className={`${styles.bar} ${confirm ? styles.barConfirm : ''}`}>
+    <div
+      className={`${styles.bar} ${confirm ? styles.barConfirm : ''} ${prominent ? styles.barProminent : ''}`}
+    >
       <input
         className={styles.input}
         type="text"
         placeholder="Describe a vibe, genre, or what you want to make…"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          if (onDismissPostKeepOverlay) tryDismissOverlay();
+          onChange(e.target.value);
+        }}
         onKeyDown={(e) => {
+          if (onDismissPostKeepOverlay) {
+            const typing =
+              (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) ||
+              e.key === 'Backspace' ||
+              e.key === 'Delete';
+            if (typing) tryDismissOverlay();
+          }
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             if (!disabled && !loading) onGenerate();
@@ -44,7 +70,7 @@ export default function InputBar({
           onClick={onRegen}
           disabled={disabled}
         >
-          Regen
+          Try Again
         </button>
         <button
           type="button"

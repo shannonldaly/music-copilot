@@ -7,4 +7,4 @@ export const AGENTS = [
   { id: 'sound_eng', label: 'Sound Eng' },
 ];
 
-export const CHORD_BORDER_COLORS = ['#f5602a', '#4a9eff', '#a855f7', '#22c55e'];
+export const CHORD_BORDER_COLORS = ['#3a9e8a', '#4a9eff', '#a855f7', '#22c55e'];

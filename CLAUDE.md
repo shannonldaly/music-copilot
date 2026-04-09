@@ -428,13 +428,70 @@ API docs available at: `http://localhost:8000/docs`
 - Cost logging dashboard (dev-only, low priority)
 - 60-second demo video (record after Phase 3 MCP integration)
 
-### Phase 3 — Ableton MCP Integration
+### Phase 3a — Architecture & Agent Quality ✅ COMPLETE
+*Goal: Orchestrator is the single source of truth. Agent quality gaps closed.*
+
+1. ✅ Architect skill onboarding run — ARCHITECTURE.md, BACKLOG.md, decisions/ populated
+2. ✅ Orchestrator consolidation (Option B+) — api/main.py generate() from 315 lines to 32 lines
+3. ✅ Teaching Agent wired to always-API (Sonnet) with Approach C graceful degrade
+4. ✅ SE Agent contract mismatch resolved — unified `{summary, steps, ableton_path, principle, artist_reference}` shape
+5. ✅ SE Agent API fallback via `answer_question_structured()` for unrecognized topics
+6. ✅ `artist_reference` intent handler — single-artist prompts now produce results
+7. ✅ `use_api` flag semantics documented
+8. ✅ All bare `except: pass` replaced with `logger.warning()`
+
+**Decision log**: `decisions/2026-04-08-orchestrator-consolidation-b-plus.md`
+
+### Phase 3b — UX Design Sprint (IN PROGRESS)
+*Goal: The frontend is demo-worthy. Every feature is visually surfaced.*
+
+1. Rubato branding — name, typography, color palette, logo
+2. Sound Engineering Agent surfaced in UI with structured panel
+3. Artist blend intent surfaced in UI with attribution columns
+4. Piano roll legibility improvements
+5. Project create / open / resume flow
+6. Session history view
+7. Onboarding flow for first-time users
+8. Keep confirmation loop in session stages
+
+### Phase 3c — Operational Readiness Sprint 1
+*Goal: The system is testable, observable, and safe to modify. All BEFORE MCP.*
+
+1. Contract tests for all 7 agents — verify input/output shapes match what both sides expect
+2. Integration tests for `/api/generate` across all intent types (mood_vibe, drum_pattern, sound_engineering, artist_blend, artist_reference)
+3. Unit tests for: TheoryValidator, detect_intent_local, key inference priority logic, enharmonic spelling
+4. Convert 7 manual curl verifications to automated pytest suite
+5. Structured logging: every agent logs what it received, returned, and how long it took
+6. Health check endpoint (`/api/health`) actually verifies dependencies — music21 loaded, API key status
+7. Error handling: every agent has a defined fallback — no silent nulls reaching the frontend
+8. Secrets audit: no API keys in code or committed to git, `.env.example` exists
+9. README updated: a new person can clone and run the project from these instructions alone
+10. API documentation accurate at `/docs`
+
+### Phase 4 — Ableton MCP Integration
 *Goal: Chord progressions appear directly in Ableton, no copy-paste.*
 
 1. Install and configure `ableton-mcp` (evaluate ahujasid vs jpoindexter versions)
 2. Convert Production Agent's MCP-commented pseudocode into live MCP calls
 3. Test end-to-end: prompt in browser → chord progression in Ableton Piano Roll
 4. This is the employer demo that closes the room
+
+### Phase 5 — Operational Readiness Sprint 2
+*Goal: Post-MCP hardening. The system is stable under real use.*
+
+1. MCP-specific error handling — Ableton not running, connection lost, clip creation failed
+2. End-to-end integration tests covering the MCP path
+3. Performance baseline: measure and log request latency per agent
+4. Session recovery — handle interrupted MCP operations gracefully
+5. BACKLOG.md and decisions/ up to date with all Phase 4 decisions
+
+### Phase 6 — Demo
+*Goal: A 60-second video that makes employers reach out.*
+
+1. Record the demo flow: prompt → chord progression plays in browser → appears in Ableton Piano Roll
+2. Polish the first-30-seconds experience (what does an employer see?)
+3. README with demo GIF/video, architecture diagram, and "why this exists" positioning
+4. Ship to portfolio — LANDR, Output, Splice targeting
 
 ---
 
@@ -471,42 +528,40 @@ API docs available at: `http://localhost:8000/docs`
 
 ---
 
-*Last updated: 2026-04-08 — Phase 2 complete. Architect skill onboarding run complete. ARCHITECTURE.md, BACKLOG.md, and decisions/ populated. Phase 3 in progress.*
+*Last updated: 2026-04-09 — Phase 3a complete (B+ Orchestrator consolidation). Phase 3b UX Sprint in progress. Build sequence updated: 3a → 3b → 3c → Phase 4 MCP → Phase 5 Ops Sprint 2 → Phase 6 Demo.*
 *Next update trigger: Any agent spec change, any architectural decision, any new dependency added*
 
 ---
 
-## Phase 3 Definition of Done — Before Moving to Phase 4 MCP
+## Phases 3a–3c Definition of Done — Before Moving to Phase 4 MCP
 
-Phase 3 is not complete until ALL of the following pass:
+Phases 3a through 3c are not complete until ALL of the following pass:
 
-### Features
+### Architecture (Phase 3a ✅)
+- [x] Orchestrator refactor complete (Option B+ — per architect decision log)
+- [x] Teaching Agent wired to API (always, not local fallback)
+- [x] Sound Engineering Agent API fallback for unknown topics
+- [x] SE Agent contract mismatch resolved (local and API return same shape)
+- [x] Architect skill onboarding run complete
+- [x] ARCHITECTURE.md, BACKLOG.md, and decisions/ populated
+
+### Features (Phase 3b — in progress)
 - [ ] Sound Engineering Agent surfaced in UI with structured panel
 - [ ] Artist blend intent surfaced in UI with attribution columns
 - [ ] UX design sprint complete — Rubato branding, piano roll legibility, project create/open/resume, session history, onboarding flow, Keep confirmation loop
-- [ ] Architect skill onboarding run complete (done ✓)
-- [ ] ARCHITECTURE.md, BACKLOG.md, and decisions/ populated (done ✓)
 
-### Testing (minimum viable test suite)
+### Testing & Operational Readiness (Phase 3c)
 - [ ] Contract tests passing for all 7 agents — verify input/output shapes match what both sides expect
-- [ ] Integration tests passing for /api/generate across all 5 intent types (mood_vibe, drum_pattern, sound_engineering, artist_blend, artist_reference)
+- [ ] Integration tests passing for /api/generate across all intent types (mood_vibe, drum_pattern, sound_engineering, artist_blend, artist_reference)
 - [ ] Unit tests passing for: TheoryValidator, detect_intent_local, key inference priority logic, enharmonic spelling
 - [ ] All existing manual curl verification tests converted to automated pytest suite
-- [ ] Regression check: all tests pass after every change in Phase 3
-
-### Operational Readiness Baseline
+- [ ] Regression check: all tests pass after every change
 - [ ] Structured logging: every agent logs what it received, returned, and how long it took
-- [ ] Health check endpoint (/api/health) actually verifies dependencies — Anthropic API reachable, music21 loaded
+- [ ] Health check endpoint (/api/health) actually verifies dependencies — music21 loaded, API key status
 - [ ] Error handling: every agent has a defined fallback — no silent nulls reaching the frontend
 - [ ] Secrets audit: no API keys in code or committed to git, .env.example exists
 - [ ] README updated: a new person can clone and run the project from these instructions alone
 - [ ] API documentation accurate at /docs
-
-### Architecture
-- [ ] Orchestrator refactor complete (Option B+ — per architect decision log)
-- [ ] Teaching Agent wired to API (always, not local fallback)
-- [ ] Sound Engineering Agent API fallback for unknown topics
-- [ ] SE Agent contract mismatch resolved (local and API return same shape)
 - [ ] BACKLOG.md and decisions/ up to date with all Phase 3 decisions
 
 Only after all boxes are checked: begin Phase 4 MCP Integration.

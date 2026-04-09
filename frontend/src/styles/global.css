@@ -12,9 +12,9 @@ body,
 }
 
 body {
-  font-family: 'IBM Plex Sans', system-ui, sans-serif;
-  background: #111;
-  color: #e8e8e8;
+  font-family: var(--font-primary);
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
 }
 

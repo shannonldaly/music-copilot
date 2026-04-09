@@ -14,7 +14,7 @@ export default function TopBar({
   return (
     <header className={styles.menubar}>
       <div className={styles.left}>
-        <span className={styles.appName}>Co-Pilot</span>
+        <span className={styles.appName}>Rubato</span>
         {songName ? <span className={styles.songName}>{songName}</span> : null}
         {onNewSession ? (
           <button type="button" className={styles.newSess} onClick={onNewSession}>

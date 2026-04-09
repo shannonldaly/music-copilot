@@ -2,33 +2,30 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 40px;
-  padding: 0 12px;
-  background: #1a1a1a;
-  border-bottom: 1px solid #222;
+  height: 44px;
+  padding: 0 var(--space-md);
+  background: var(--color-bg-base);
+  border-bottom: 1px solid var(--color-border-subtle);
   flex-shrink: 0;
 }
 
 .left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-md);
 }
 
 .appName {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  color: #e8e8e8;
+  letter-spacing: 0.02em;
+  color: var(--color-text-primary);
 }
 
 .songName {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 400;
-  letter-spacing: 0.04em;
-  color: #6a6a6a;
+  color: var(--color-text-tertiary);
   max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -38,52 +35,58 @@
 .songName::before {
   content: '·';
   margin: 0 10px 0 2px;
-  color: #3a3a3a;
+  color: var(--color-border-medium);
 }
 
 .newSess {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 10px;
-  padding: 4px 8px;
-  background: #161616;
-  border: 1px solid #222;
-  border-radius: 2px;
-  color: #9a9a9a;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--color-border-medium);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
   cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
 .newSess:hover {
-  color: #f5602a;
-  border-color: #333;
+  color: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+  background: var(--color-accent-primary-muted);
 }
 
 .right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-md);
 }
 
 .transport {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 
 .transportBtn {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  min-width: 28px;
-  height: 24px;
-  padding: 0 6px;
-  background: #161616;
-  border: 1px solid #222;
-  border-radius: 2px;
-  color: #f5602a;
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 32px;
+  height: 28px;
+  padding: 0 var(--space-sm);
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-accent-primary);
   cursor: pointer;
+  transition: background 0.15s ease;
 }
 
 .transportBtn:hover:not(:disabled) {
-  background: #1a1a1a;
+  background: var(--color-bg-hover);
 }
 
 .transportBtn:disabled {
@@ -92,7 +95,7 @@
 }
 
 .mono {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  color: #9a9a9a;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-tertiary);
 }
