@@ -13,40 +13,36 @@ Prerequisites:
   - Backend running on :8000
   - Frontend running on :5173
   - Playwright + chromium installed
-  - data-testid attributes added to frontend components (see list below)
 
 Run with:
   pytest tests/e2e/ --headed   (watch the browser)
   pytest tests/e2e/            (headless, CI-friendly)
 
-TODO: The following data-testid attributes must be added by Cursor before
-these tests will pass. Each TODO comment marks where a selector is used.
+Selectors used (all data-testid attributes):
 
-  CRITICAL PATH (test blocks without these):
-    WelcomeScreen.jsx    → data-testid="welcome-start-button"
-    SessionStartModal.jsx → data-testid="session-modal"
-    SessionStartModal.jsx → data-testid="session-mode-chords"
-    SessionStartModal.jsx → data-testid="session-mode-drums"
-    SessionStartModal.jsx → data-testid="session-modal-continue"
-    InputBar.jsx          → data-testid="prompt-input"
-    InputBar.jsx          → data-testid="generate-button"
-    InputBar.jsx          → data-testid="keep-button"
+  CRITICAL PATH:
+    welcome-start-button     WelcomeScreen.jsx
+    session-modal            SessionStartModal.jsx
+    session-mode-chords      SessionStartModal.jsx
+    session-mode-drums       SessionStartModal.jsx
+    session-modal-continue   SessionStartModal.jsx
+    prompt-input             InputBar.jsx
+    generate-button          InputBar.jsx
+    keep-button              InputBar.jsx
 
-  ASSERT TARGETS (test verifies these exist):
-    MainWorkspace.jsx     → data-testid="chord-row"
-    MainWorkspace.jsx     → data-testid="validation-badge"
-    MainWorkspace.jsx     → data-testid="teaching-note-section"
-    MainWorkspace.jsx     → data-testid="ableton-steps-section"
-    MainWorkspace.jsx     → data-testid="also-try-section"
-    MainWorkspace.jsx     → data-testid="melody-direction-panel"
-    MainWorkspace.jsx     → data-testid="drum-grid-block"
-    App.jsx               → data-testid="sound-engineering-panel"
-    App.jsx               → data-testid="artist-blend-panel"
+  ASSERT TARGETS:
+    chord-row                MainWorkspace.jsx
+    validation-badge         MainWorkspace.jsx
+    teaching-note-section    MainWorkspace.jsx
+    ableton-steps-section    MainWorkspace.jsx
+    also-try-section         MainWorkspace.jsx
+    melody-direction-panel   MainWorkspace.jsx
+    drum-grid-block          MainWorkspace.jsx
+    sound-engineering-panel  App.jsx
+    artist-blend-panel       App.jsx
 
   STAGE VERIFICATION:
-    ProgressSidebar.jsx   → data-testid="progress-sidebar"
-    ProgressSidebar.jsx   → data-testid="stage-row-{stageId}"
-    App.jsx               → data-testid="app-root"
+    progress-sidebar         ProgressSidebar.jsx
 """
 
 import pytest
@@ -78,6 +74,20 @@ def fill_and_submit(page, input_testid: str, text: str, submit_testid: str):
     page.locator(tid(submit_testid)).click()
 
 
+def navigate_to_workspace(page, mode: str = "chords"):
+    """Reusable setup: welcome → modal → select mode → continue → workspace.
+
+    Args:
+        page: Playwright page (from app_page fixture)
+        mode: "chords", "drums", "mixing", or "full"
+    """
+    wait_and_click(page, "welcome-start-button")
+    wait_for_visible(page, "session-modal")
+    wait_and_click(page, f"session-mode-{mode}")
+    wait_and_click(page, "session-modal-continue")
+    wait_for_visible(page, "prompt-input")
+
+
 # =============================================================================
 # Test 1: Welcome → Modal → Session Created
 # =============================================================================
@@ -87,15 +97,13 @@ def test_welcome_to_session_modal(app_page):
     """User lands on welcome screen and opens the session modal."""
     page = app_page
 
-    # Step 1: Welcome screen visible
-    # TODO: requires data-testid="welcome-start-button" on WelcomeScreen.jsx
+    # Welcome screen visible
     wait_for_visible(page, "welcome-start-button")
 
-    # Step 2: Click start → modal opens
+    # Click start → modal opens
     wait_and_click(page, "welcome-start-button")
 
-    # Step 3: Modal is visible with mode options
-    # TODO: requires data-testid="session-modal" on SessionStartModal.jsx
+    # Modal is visible with mode options
     wait_for_visible(page, "session-modal")
 
 
@@ -108,16 +116,13 @@ def test_select_mode_and_continue(app_page):
     wait_and_click(page, "welcome-start-button")
     wait_for_visible(page, "session-modal")
 
-    # Step 1: Select "Chords + Melody" mode
-    # TODO: requires data-testid="session-mode-chords" on SessionStartModal.jsx
+    # Select "Chords + Melody" mode
     wait_and_click(page, "session-mode-chords")
 
-    # Step 2: Click continue
-    # TODO: requires data-testid="session-modal-continue" on SessionStartModal.jsx
+    # Click continue
     wait_and_click(page, "session-modal-continue")
 
-    # Step 3: Modal closes, workspace visible with prompt input
-    # TODO: requires data-testid="prompt-input" on InputBar.jsx
+    # Modal closes, workspace visible with prompt input
     wait_for_visible(page, "prompt-input")
 
 
@@ -129,24 +134,15 @@ def test_select_mode_and_continue(app_page):
 def test_generate_chord_progression(app_page):
     """User enters a mood prompt and gets a full chord response."""
     page = app_page
+    navigate_to_workspace(page, "chords")
 
-    # Setup: get to the workspace
-    wait_and_click(page, "welcome-start-button")
-    wait_for_visible(page, "session-modal")
-    wait_and_click(page, "session-mode-chords")
-    wait_and_click(page, "session-modal-continue")
-    wait_for_visible(page, "prompt-input")
-
-    # Step 1: Type a prompt and generate
-    # TODO: requires data-testid="prompt-input" and "generate-button" on InputBar.jsx
+    # Type a prompt and generate
     fill_and_submit(page, "prompt-input", "melancholic lo-fi", "generate-button")
 
-    # Step 2: Wait for chord row to appear (generation complete)
-    # TODO: requires data-testid="chord-row" on MainWorkspace.jsx
+    # Wait for chord row to appear (generation complete)
     wait_for_visible(page, "chord-row", timeout=15000)
 
-    # Step 3: Verify all panels rendered
-    # TODO: requires data-testid on each panel in MainWorkspace.jsx
+    # Verify all panels rendered
     wait_for_visible(page, "validation-badge")
     wait_for_visible(page, "teaching-note-section")
     wait_for_visible(page, "ableton-steps-section")
@@ -158,20 +154,12 @@ def test_generate_chord_progression(app_page):
 def test_generate_drum_pattern(app_page):
     """User enters a drum prompt and gets a drum grid response."""
     page = app_page
-
-    # Setup: get to workspace in drums mode
-    wait_and_click(page, "welcome-start-button")
-    wait_for_visible(page, "session-modal")
-    # TODO: requires data-testid="session-mode-drums" on SessionStartModal.jsx
-    wait_and_click(page, "session-mode-drums")
-    wait_and_click(page, "session-modal-continue")
-    wait_for_visible(page, "prompt-input")
+    navigate_to_workspace(page, "drums")
 
     # Generate
     fill_and_submit(page, "prompt-input", "trap beat", "generate-button")
 
     # Verify drum grid appears
-    # TODO: requires data-testid="drum-grid-block" on MainWorkspace.jsx
     wait_for_visible(page, "drum-grid-block", timeout=15000)
 
 
@@ -179,19 +167,12 @@ def test_generate_drum_pattern(app_page):
 def test_generate_sound_engineering(app_page):
     """User asks a sound engineering question and gets the SE panel."""
     page = app_page
-
-    # Setup: get to workspace
-    wait_and_click(page, "welcome-start-button")
-    wait_for_visible(page, "session-modal")
-    wait_and_click(page, "session-mode-chords")
-    wait_and_click(page, "session-modal-continue")
-    wait_for_visible(page, "prompt-input")
+    navigate_to_workspace(page, "chords")
 
     # Generate SE response
     fill_and_submit(page, "prompt-input", "how do I sidechain my bass", "generate-button")
 
     # Verify SE panel appears
-    # TODO: requires data-testid="sound-engineering-panel" on App.jsx
     wait_for_visible(page, "sound-engineering-panel", timeout=15000)
 
 
@@ -203,25 +184,17 @@ def test_generate_sound_engineering(app_page):
 def test_keep_advances_stage(app_page):
     """After generation, clicking Keep confirms the stage and advances."""
     page = app_page
+    navigate_to_workspace(page, "chords")
 
-    # Setup: generate a progression
-    wait_and_click(page, "welcome-start-button")
-    wait_for_visible(page, "session-modal")
-    wait_and_click(page, "session-mode-chords")
-    wait_and_click(page, "session-modal-continue")
-    wait_for_visible(page, "prompt-input")
+    # Generate a progression
     fill_and_submit(page, "prompt-input", "melancholic lo-fi", "generate-button")
     wait_for_visible(page, "chord-row", timeout=15000)
 
-    # Step 1: Click Keep
-    # TODO: requires data-testid="keep-button" on InputBar.jsx
+    # Click Keep
     wait_and_click(page, "keep-button")
 
-    # Step 2: Verify stage advanced in sidebar
-    # TODO: requires data-testid="progress-sidebar" on ProgressSidebar.jsx
+    # Verify stage advanced — sidebar visible, prompt input ready for next stage
     wait_for_visible(page, "progress-sidebar")
-
-    # The prompt input should be available for the next stage
     wait_for_visible(page, "prompt-input")
 
 
@@ -233,13 +206,7 @@ def test_keep_advances_stage(app_page):
 def test_artist_blend_shows_panel(app_page):
     """Artist blend prompt shows the blend attribution panel."""
     page = app_page
-
-    # Setup
-    wait_and_click(page, "welcome-start-button")
-    wait_for_visible(page, "session-modal")
-    wait_and_click(page, "session-mode-chords")
-    wait_and_click(page, "session-modal-continue")
-    wait_for_visible(page, "prompt-input")
+    navigate_to_workspace(page, "chords")
 
     # Generate blend
     fill_and_submit(
@@ -249,7 +216,6 @@ def test_artist_blend_shows_panel(app_page):
     )
 
     # Verify blend panel appears
-    # TODO: requires data-testid="artist-blend-panel" on App.jsx
     wait_for_visible(page, "artist-blend-panel", timeout=15000)
 
 

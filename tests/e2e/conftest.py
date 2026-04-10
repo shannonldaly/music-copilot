@@ -40,9 +40,12 @@ def page(browser):
 
 @pytest.fixture
 def app_page(page):
-    """Navigate to the frontend and wait for initial load."""
+    """Navigate to the frontend and wait for initial load.
+
+    Waits for the welcome-start-button to confirm React has mounted
+    and the welcome screen is rendered. If your project doesn't have
+    a welcome screen, change this to any element that appears on first load.
+    """
     page.goto(FRONTEND_URL)
-    # Wait for the React app to mount — look for the root container
-    # TODO: requires data-testid="app-root" on the root div in App.jsx
-    page.wait_for_selector("[data-testid='app-root']", timeout=10000)
+    page.wait_for_selector("[data-testid='welcome-start-button']", timeout=10000)
     return page
