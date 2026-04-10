@@ -39,6 +39,7 @@ from theory import (
 )
 from utils.tokens import TokenTracker, log_api_call
 from utils.models import ModelConfig, TaskType, get_model_for_task, HAIKU, SONNET
+from utils.logging import log_agent_call
 from api.progression_utils import parse_bpm_from_tempo
 from agents.production_agent import (
     generate_chord_instructions_local,
@@ -216,6 +217,7 @@ class Orchestrator:
             self._client = Anthropic(api_key=self._api_key) if self._api_key else Anthropic()
         return self._client
 
+    @log_agent_call
     def detect_intent_local(self, prompt: str) -> tuple:
         """
         Keyword-based intent detection (no API needed).
@@ -295,6 +297,7 @@ class Orchestrator:
     # execute() — full pipeline: intent → lookup → agents → response dict
     # =========================================================================
 
+    @log_agent_call
     def execute(self, prompt: str, use_api: bool = False) -> dict:
         """
         Full pipeline entry point. Returns a dict ready for GenerateResponse.
@@ -337,6 +340,7 @@ class Orchestrator:
 
     def _lookup_local(self, intent_type: str, extracted: dict, prompt: str) -> dict:
         """Execute local lookups based on intent type."""
+        logger.info(f"Routing: intent={intent_type}, moods={extracted.get('moods', [])}, genres={extracted.get('genres', [])}, key={extracted.get('key')}")
         local_data = {}
 
         if intent_type in ('mood_vibe', 'theory_request'):
@@ -368,6 +372,7 @@ class Orchestrator:
                 else:
                     key_root, key_mode = 'C', 'major'
 
+            logger.info(f"Key resolved: {key_root} {key_mode} (source={'user' if extracted.get('key') else 'inferred'})")
             progressions = []
             for mood in moods:
                 progs = search_progressions(mood=mood, key_type=key_mode)

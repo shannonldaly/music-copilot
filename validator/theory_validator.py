@@ -40,6 +40,11 @@ from music21 import (
     analysis,
 )
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.logging import log_agent_call
+
 
 class ValidationSeverity(Enum):
     """Severity levels for validation issues."""
@@ -110,6 +115,7 @@ class TheoryValidator:
     def __init__(self):
         pass
 
+    @log_agent_call
     def validate_progression(self, progression_data: Dict) -> ValidationResult:
         """
         Validate a complete chord progression.

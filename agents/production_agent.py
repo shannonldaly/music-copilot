@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.tokens import TokenTracker, log_api_call
 from utils.models import ModelConfig, TaskType, get_model_for_task, SONNET
+from utils.logging import log_agent_call
 
 
 @dataclass
@@ -307,6 +308,7 @@ Use 606/808/909 sounds from Ableton's Core Library. Make it beginner-friendly.""
 # Local generation (no API) for simple cases
 # =============================================================================
 
+@log_agent_call
 def generate_chord_instructions_local(
     progression_data: Dict,
     daw: str = "Ableton Live 12"
@@ -382,6 +384,7 @@ def generate_chord_instructions_local(
     return "\n".join(lines)
 
 
+@log_agent_call
 def generate_drum_instructions_local(
     pattern_data: Dict,
     daw: str = "Ableton Live 12"

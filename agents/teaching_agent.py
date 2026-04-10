@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.tokens import TokenTracker, log_api_call
 from utils.models import ModelConfig, TaskType, get_model_for_task, SONNET
+from utils.logging import log_agent_call
 
 
 @dataclass
@@ -71,6 +72,7 @@ class TeachingAgent:
             return content[:4000] + "\n[... truncated for context ...]"
         return ""
 
+    @log_agent_call
     def explain_progression(
         self,
         progression_data: Dict,
@@ -282,6 +284,7 @@ Keep it practical and encouraging."""
 # Local generation (no API) for simple explanations
 # =============================================================================
 
+@log_agent_call
 def generate_progression_explanation_local(progression_data: Dict) -> str:
     """
     Generate a basic progression explanation without API call.
@@ -355,6 +358,7 @@ The movement between these chords creates emotional tension and release in ways 
 """
 
 
+@log_agent_call
 def generate_rhythm_explanation_local(pattern_data: Dict) -> str:
     """Generate a basic rhythm explanation without API call."""
     name = pattern_data.get("name", "Pattern")

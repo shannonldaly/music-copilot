@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.tokens import TokenTracker, log_api_call
 from utils.models import ModelConfig, TaskType, get_model_for_task, SONNET
+from utils.logging import log_agent_call
 
 
 @dataclass
@@ -134,6 +135,7 @@ class SoundEngineeringAgent:
             "question": question,
         }
 
+    @log_agent_call
     def answer_question_structured(
         self,
         question: str,
@@ -471,6 +473,7 @@ _KEYWORD_TO_TOPIC = {
 }
 
 
+@log_agent_call
 def generate_sound_engineering_local(question: str) -> Optional[Dict]:
     """
     Generate a structured sound engineering response without an API call.

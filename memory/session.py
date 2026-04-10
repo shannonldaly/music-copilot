@@ -12,11 +12,15 @@ v2: SQLite/Postgres for better querying
 
 import json
 import os
+import sys
 import uuid
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional, Any
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.logging import log_agent_call
 
 
 @dataclass
@@ -123,6 +127,7 @@ class SessionManager:
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
+    @log_agent_call
     def create_session(
         self,
         user_profile: Optional[UserProfile] = None,
@@ -185,6 +190,7 @@ class SessionManager:
                 pass
         return sorted(sessions, key=lambda x: x["updated_at"], reverse=True)
 
+    @log_agent_call
     def add_to_history(
         self,
         session: Session,
