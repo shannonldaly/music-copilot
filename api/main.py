@@ -74,104 +74,106 @@ class GenerateRequest(BaseModel):
 
 
 class GenerateResponse(BaseModel):
-    """Response from generation."""
-    success: bool
-    session_id: str
-    intent: str
-    confidence: float
+    """Full response from the generation pipeline. Fields populated depend on intent type."""
+    success: bool = Field(..., description="Whether the request completed successfully")
+    session_id: str = Field(..., description="Session ID for this request (auto-created if not provided)")
+    intent: str = Field(..., description="Detected intent type: mood_vibe, drum_pattern, sound_engineering, artist_blend, artist_reference, production_question")
+    confidence: float = Field(..., description="Intent detection confidence (0.0–1.0)")
 
     # Core outputs
-    progressions: Optional[List[Dict]] = None
-    drum_patterns: Optional[List[Dict]] = None
-    progression: Optional[Dict] = None
+    progressions: Optional[List[Dict]] = Field(None, description="Array of full note-level progressions. Each has: name, numerals, key, chords (with numeral, name, note_names), tempo_range, moods, genres")
+    drum_patterns: Optional[List[Dict]] = Field(None, description="Array of drum patterns. Each has: name, description, tempo_range, swing, grid (sound→step arrays), genres")
+    progression: Optional[Dict] = Field(None, description="The primary progression (first item of progressions array), for convenience")
 
-    # Sidebar (Phase 2)
-    key: Optional[str] = None
-    key_was_specified: bool = False
-    bpm: Optional[int] = None
-    progression_name: Optional[str] = None
-    genre_context: Optional[str] = None
+    # Sidebar metadata
+    key: Optional[str] = Field(None, description="Musical key of the primary progression, e.g. 'A minor', 'Bb major'")
+    key_was_specified: bool = Field(False, description="True if the user explicitly requested a key in their prompt")
+    bpm: Optional[int] = Field(None, description="Tempo in BPM (midpoint of tempo_range)")
+    progression_name: Optional[str] = Field(None, description="Name of the primary progression or drum pattern")
+    genre_context: Optional[str] = Field(None, description="Comma-separated genre tags for the result")
 
     # Agent outputs
-    production_steps: Optional[str] = None
-    teaching_note: Optional[str] = None
+    production_steps: Optional[str] = Field(None, description="Markdown string with step-by-step Ableton Live instructions and MCP v2 comments")
+    teaching_note: Optional[str] = Field(None, description="Markdown string explaining why the progression works — music theory education")
 
     # Theory Agent extended output
-    alternatives: Optional[List[Dict]] = None
-    melody_direction: Optional[Dict] = None
+    alternatives: Optional[List[Dict]] = Field(None, description="3 alternative progressions: darker, more movement, unexpected. Each has: label, progression_name, chords (as {name, numeral} objects), character")
+    melody_direction: Optional[Dict] = Field(None, description="Melody guidance: start_note, start_note_context, contour, rhythm_feel, avoid_on_strong_beats, avoid_context, suggested_range, artist_reference")
 
     # Sound Engineering Agent output
-    sound_engineering_response: Optional[Dict] = None
+    sound_engineering_response: Optional[Dict] = Field(None, description="Structured SE advice: summary, steps (list), ableton_path, principle, artist_reference")
 
     # Artist Blend output
-    artist_blend: Optional[Dict] = None
+    artist_blend: Optional[Dict] = Field(None, description="Blend of two artists: artist_1, artist_2, blend_description, from_artist_1, from_artist_2, production_direction")
 
     # Validation
-    validation: Optional[Dict] = None
+    validation: Optional[Dict] = Field(None, description="Theory validation result: passed (bool), errors (list), warnings (list), corrected_output")
 
     # Metadata
-    tokens_used: Optional[int] = None
-    cost_usd: Optional[float] = None
-    clarification_needed: bool = False
-    clarification_question: Optional[str] = None
+    tokens_used: Optional[int] = Field(None, description="Total API tokens used for this request (0 in local mode)")
+    cost_usd: Optional[float] = Field(None, description="Estimated API cost in USD for this request")
+    clarification_needed: bool = Field(False, description="If true, the orchestrator needs more info — check clarification_question")
+    clarification_question: Optional[str] = Field(None, description="The one clarifying question to ask the user before proceeding")
 
 
 class FeedbackRequest(BaseModel):
-    """Feedback on a generation."""
-    session_id: str
-    entry_index: int = Field(-1, description="History entry index (-1 for last)")
+    """Record user feedback on a generation output."""
+    session_id: str = Field(..., description="Session ID containing the history entry")
+    entry_index: int = Field(-1, description="History entry index to apply feedback to (-1 for most recent)")
     feedback: str = Field(
         ...,
-        description="thumbs_up, thumbs_down, regenerate, progression_swap",
+        description="Feedback type: thumbs_up, thumbs_down, regenerate, or progression_swap",
     )
-    swap_label: Optional[str] = None
+    swap_label: Optional[str] = Field(None, description="Required when feedback is progression_swap — the alternative label to swap in")
 
 
 class SessionCreateBody(BaseModel):
-    theory_level: str = "rusty_intermediate"
-    production_level: str = "beginner"
-    session_mode: Optional[str] = None
+    """Create a new session with user profile settings."""
+    theory_level: str = Field("rusty_intermediate", description="User theory level: beginner, rusty_intermediate, intermediate, advanced")
+    production_level: str = Field("beginner", description="User production level: beginner, intermediate, advanced")
+    session_mode: Optional[str] = Field(None, description="Session workflow mode: chords, drums, mixing, or full")
 
 
 class SessionPatchBody(BaseModel):
     """Partial session update. song_name is stored on current_project.name."""
-    song_name: Optional[str] = None
+    song_name: Optional[str] = Field(None, description="New display name for the session/project")
 
 
 class SessionResponse(BaseModel):
-    """Session data response."""
-    session_id: str
-    created_at: str
-    user_profile: Dict
-    current_project: Dict
-    history_count: int
-    session_mode: Optional[str] = None
+    """Session data returned by session CRUD endpoints."""
+    session_id: str = Field(..., description="Unique session identifier (UUID)")
+    created_at: str = Field(..., description="ISO 8601 creation timestamp")
+    user_profile: Dict = Field(..., description="User profile: theory_level, production_level, preferred_genres, daw")
+    current_project: Dict = Field(..., description="Current project context: key, bpm, genre, name")
+    history_count: int = Field(..., description="Number of history entries in this session")
+    session_mode: Optional[str] = Field(None, description="Session workflow mode: chords, drums, mixing, or full")
 
 
 class ExpandProgressionRequest(BaseModel):
-    """Expand alternative chord names to full note-level progression."""
-    chords: List[str] = Field(..., min_length=1)
-    key: str = Field(..., min_length=1)
-    progression_name: str = Field(..., min_length=1)
-    session_id: Optional[str] = None
+    """Expand lightweight alternative chord names to full note-level data + validation."""
+    chords: List[str] = Field(..., min_length=1, description="Chord names to expand, e.g. ['Am', 'F', 'Dm', 'G']")
+    key: str = Field(..., min_length=1, description="Musical key, e.g. 'A minor'")
+    progression_name: str = Field(..., min_length=1, description="Progression name, e.g. 'i – VI – iv – VII'")
+    session_id: Optional[str] = Field(None, description="Optional session ID for context")
 
 
 class ExpandProgressionResponse(BaseModel):
-    success: bool
-    key: str
-    scale: str
-    progression_name: str
-    chords: List[Dict]
-    validation: Optional[Dict] = None
+    """Full note-level expansion of a lightweight alternative progression."""
+    success: bool = Field(..., description="Whether expansion succeeded")
+    key: str = Field(..., description="Musical key used for expansion")
+    scale: str = Field(..., description="Scale type: natural minor, major, etc.")
+    progression_name: str = Field(..., description="Progression name")
+    chords: List[Dict] = Field(..., description="Full chord data with numeral, name, note_names for each chord")
+    validation: Optional[Dict] = Field(None, description="Theory validation result for the expanded progression")
 
 
 class ProjectUpdateRequest(BaseModel):
-    """Update project context."""
-    session_id: str
-    key: Optional[str] = None
-    bpm: Optional[int] = None
-    genre: Optional[str] = None
-    name: Optional[str] = None
+    """Update the current project context for a session."""
+    session_id: str = Field(..., description="Session ID to update")
+    key: Optional[str] = Field(None, description="Musical key, e.g. 'A minor'")
+    bpm: Optional[int] = Field(None, description="Tempo in BPM")
+    genre: Optional[str] = Field(None, description="Genre tag, e.g. 'lo-fi'")
+    name: Optional[str] = Field(None, description="Project display name")
 
 
 # =============================================================================
@@ -180,9 +182,30 @@ class ProjectUpdateRequest(BaseModel):
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint."""
+    """Health check — verifies actual dependencies, not just 'I'm running'.
+
+    Returns structured status: music21 loaded, API key configured.
+    Status is 'ok' if all dependencies pass, 'degraded' if any fail.
+    """
+    checks = {}
+
+    # Check music21
+    try:
+        from music21 import pitch
+        pitch.Pitch("C4")
+        checks["music21"] = True
+    except Exception:
+        checks["music21"] = False
+
+    # Check API key (don't call the API, just verify env var exists)
+    checks["api_key_configured"] = bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+    all_ok = all(checks.values())
+
     return {
-        "status": "healthy",
+        "status": "ok" if all_ok else "degraded",
+        "music21": checks["music21"],
+        "api_key_configured": checks["api_key_configured"],
         "timestamp": datetime.now().isoformat(),
         "version": "0.1.0",
     }

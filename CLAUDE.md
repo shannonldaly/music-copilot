@@ -467,6 +467,9 @@ API docs available at: `http://localhost:8000/docs`
 8. Secrets audit: no API keys in code or committed to git, `.env.example` exists
 9. README updated: a new person can clone and run the project from these instructions alone
 10. API documentation accurate at `/docs`
+11. Playwright E2E test template — automated browser tests for the core user journey (welcome → modal → generate → Keep → stage advance). Written as a reusable template that travels to future client projects, not just Rubato-specific tests.
+12. `/services/` folder created — empty folder at project root with a README.md explaining: all external integrations live here. MCP client will live here in Phase 4. Stripe, Supabase, webhooks go here in future projects.
+13. Architect code review pass — run the architect skill against all files over 150 lines. Flag violations of the new code review standards (200-line limit, hardcoded values, no dead code, naming conventions). Produce a findings report. Fix critical violations before Phase 4.
 
 ### Phase 4 — Ableton MCP Integration
 *Goal: Chord progressions appear directly in Ableton, no copy-paste.*

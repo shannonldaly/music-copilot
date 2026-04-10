@@ -17,6 +17,7 @@ Alternatives bypass validation — they get validated on expand via POST /api/pr
 """
 
 import json
+import logging
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 from pathlib import Path
@@ -36,6 +37,8 @@ from theory import (
 )
 from utils.tokens import TokenTracker, log_api_call
 from utils.models import ModelConfig, TaskType, get_model_for_task, SONNET
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -151,7 +154,8 @@ class TheoryAgent:
         try:
             result = json.loads(response.content[0].text)
             return result
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            logger.warning(f"Theory Agent: LLM returned unparseable JSON: {e}")
             return {"error": "Failed to parse theory output"}
 
     def generate_from_local_data(

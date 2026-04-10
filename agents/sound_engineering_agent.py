@@ -16,6 +16,7 @@ without a one-sentence explanation.
 """
 
 import json
+import logging
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 from pathlib import Path
@@ -29,6 +30,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.tokens import TokenTracker, log_api_call
 from utils.models import ModelConfig, TaskType, get_model_for_task, SONNET
 from utils.logging import log_agent_call
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -176,8 +179,8 @@ class SoundEngineeringAgent:
             required = {'summary', 'steps', 'ableton_path', 'principle', 'artist_reference'}
             if required.issubset(result.keys()):
                 return result
-        except (json.JSONDecodeError, AttributeError):
-            pass
+        except (json.JSONDecodeError, AttributeError) as e:
+            logger.warning(f"SE Agent: structured JSON parse failed, using text fallback: {e}")
 
         # Fallback: build structured response from raw text
         raw = response.content[0].text

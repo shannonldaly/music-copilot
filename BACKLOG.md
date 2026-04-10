@@ -40,3 +40,23 @@
 | 16 | **`production_question` intent still has no local handler** — "How do I..." without SE keywords returns empty. | Most production questions match SE keywords. Remaining cases are rare. | Phase 3 | **Low** — user can rephrase |
 | 17 | **`use_api=true` API-mode pipeline still partial** — `execute()` calls `process()` for Haiku intent detection, then falls through to the same local lookup + build response. Full API-mode agent pipeline (Sonnet for Theory Agent creative generation) not yet wired. | API mode was never the primary path. Local mode + Teaching Agent API covers the quality gap. | Phase 3+ | **Medium** — `use_api=true` doesn't deliver the full LLM experience it promises |
 | 18 | **Orchestrator file is 900+ lines** — Single file contains intent detection, lookup, response assembly, and all API agent wiring. | Functional and tested. Can be split into modules later if it becomes hard to navigate. | v2 | **Low** — works, just large |
+
+---
+
+## Future Architecture — Phase 5+
+
+| Gap | Why deferred | Phase | Risk if ignored |
+|-----|-------------|-------|----------------|
+| Supabase migration for session storage | JSON flat files work at current scale, Supabase needed for multi-user and persistence across devices | Phase 5 | Medium — session data lost on server restart, no cross-device access |
+| pgvector / RAG for agent memory | Flat file knowledge docs work under 4000 tokens, RAG needed when knowledge base grows | Phase 5 | Medium — artist_dna.md and music_theory.md currently truncated, agents miss content |
+| Semantic memory for Teaching Agent | Teaching Agent currently stateless — same explanation every time regardless of user history | Phase 5 | Medium — limits personalization, teaching doesn't improve over time |
+| Episodic logging to Supabase | Currently logging to console only, no persistent searchable log | Phase 5 | Low now, High at scale — no audit trail for client engagements |
+| Playwright E2E test template (reusable) | Phase 3c covers Rubato-specific tests, reusable template is the next step | Phase 3c item 11 | High — manual testing is unsustainable across multiple client projects |
+| CI/CD pipeline | No automated deploy on push to main | Phase 5 | Medium — manual deploys increase risk of shipping broken code |
+| Deployment to real URL | Currently localhost only | Phase 5 | High for demo — can't share with Jerome/Outpost/LANDR without a real URL |
+| Full onboarding flow | Currently placeholder welcome screen | Phase 5 | Low for now, High before public launch |
+| Project create/open/resume | Currently placeholder Recent Sessions tab | Phase 5 | Medium — returning users can't resume sessions |
+| Blueprint completion state | Currently placeholder | Phase 5 | Low — functional gap but not blocking demo |
+| Stripe Checkout integration | No payment processing yet | Phase 5+ | N/A until productizing |
+| Multi-user support | Currently single-user only | Phase 5+ | N/A until client deployments |
+| Knowledge graph layer | For distilling agent memory into fewer tokens at scale | Phase 5+ | Low now — only needed at high API volume |
