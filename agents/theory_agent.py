@@ -36,7 +36,7 @@ from theory import (
     NAMED_PROGRESSIONS,
 )
 from utils.tokens import TokenTracker, log_api_call
-from utils.models import ModelConfig, TaskType, get_model_for_task, SONNET
+from utils.models import ModelConfig, TaskType, get_model_for_task
 
 logger = logging.getLogger(__name__)
 
@@ -634,11 +634,19 @@ def generate_theory_output_local(
 
     This is the zero-cost path used when use_api is False.
     """
-    agent = TheoryAgent.__new__(TheoryAgent)
-    agent.tracker = None
-
     if not progressions:
         return {}
+
+    # Create a minimal agent instance for local-only methods.
+    # Only tracker is needed (for @log_agent_call). No API client,
+    # no grounding docs — these methods are deterministic.
+    agent = TheoryAgent.__new__(TheoryAgent)
+    agent.tracker = None
+    agent._api_key = None
+    agent._client = None
+    agent.model_config = None
+    agent.theory_doc = ""
+    agent.artist_dna_doc = ""
 
     primary = progressions[0]
     local_data = {"progressions": progressions}

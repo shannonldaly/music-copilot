@@ -28,7 +28,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.tokens import TokenTracker, log_api_call
-from utils.models import ModelConfig, TaskType, get_model_for_task, SONNET
+from utils.models import ModelConfig, TaskType, get_model_for_task
 from utils.logging import log_agent_call
 
 logger = logging.getLogger(__name__)
@@ -95,48 +95,6 @@ class SoundEngineeringAgent:
                 loaded[key] = ""
 
         return loaded
-
-    def answer_question(
-        self,
-        question: str,
-        user_level: str = "beginner",
-        context: Optional[Dict] = None,
-    ) -> Dict:
-        """
-        Answer a sound engineering question using the LLM.
-
-        Args:
-            question: The user's production/engineering question
-            user_level: "beginner", "intermediate", "advanced"
-            context: Optional context (current project key, genre, etc.)
-
-        Returns:
-            Dict with explanation, steps, and settings
-        """
-        system_prompt = self._build_system_prompt(user_level, question)
-        user_prompt = self._build_user_prompt(question, context)
-
-        response = self.client.messages.create(
-            model=get_model_for_task(TaskType.SOUND_ENGINEERING, self.model_config),
-            max_tokens=1500,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}]
-        )
-
-        if self.tracker:
-            log_api_call(
-                self.tracker,
-                agent="sound_engineering_agent",
-                model="sonnet",
-                input_tokens=response.usage.input_tokens,
-                output_tokens=response.usage.output_tokens,
-                request_type="engineering_question"
-            )
-
-        return {
-            "markdown": response.content[0].text,
-            "question": question,
-        }
 
     @log_agent_call
     def answer_question_structured(
@@ -248,68 +206,6 @@ RULES:
 - principle should explain *why* before *how*
 - artist_reference should name one artist and their specific use of this technique
 - Respond with valid JSON only — no markdown, no explanation outside the JSON
-
-GROUNDING CONTEXT:
-{grounding_text}"""
-
-    def _build_system_prompt(self, user_level: str, question: str) -> str:
-        """Build the system prompt with relevant grounding context."""
-        level_guidance = {
-            "beginner": "Explain *why* before *how*. Define any technical term the first time you use it. Use analogies.",
-            "intermediate": "Assume basic DAW knowledge. Focus on the reasoning behind specific settings.",
-            "advanced": "Be concise. Focus on nuance, edge cases, and advanced techniques.",
-        }
-
-        # Select relevant grounding docs based on question content
-        question_lower = question.lower()
-        grounding_sections = []
-
-        # Always include automation playbook for relevant questions
-        automation_keywords = ["automate", "automation", "filter sweep", "build", "drop",
-                               "intro", "outro", "breakdown", "arrangement", "lfo",
-                               "section", "transition"]
-        if any(kw in question_lower for kw in automation_keywords):
-            grounding_sections.append(
-                f"AUTOMATION PLAYBOOK:\n{self.grounding_docs.get('automation', '')[:2500]}"
-            )
-
-        # Include artist DNA for style/reference questions
-        artist_keywords = ["like", "style", "sound like", "reference", "artist",
-                           "massive attack", "portishead", "skrillex", "fred again",
-                           "deadmau5", "deftones", "nin", "reznor", "clozee", "griz",
-                           "böhmer", "hooverphonics", "sofi tukker"]
-        if any(kw in question_lower for kw in artist_keywords):
-            grounding_sections.append(
-                f"ARTIST DNA (production techniques):\n{self.grounding_docs.get('artist_dna', '')[:2500]}"
-            )
-
-        # Always include mixing basics
-        grounding_sections.append(
-            f"MIXING REFERENCE:\n{self.grounding_docs.get('mixing', '')[:2000]}"
-        )
-
-        grounding_text = "\n\n".join(grounding_sections)
-
-        return f"""You are a Sound Engineering Agent for a music production co-pilot. You help a music producer with mixing, mastering, EQ, compression, sidechain, spatial effects, sound design, and automation.
-
-USER LEVEL: {user_level}
-{level_guidance.get(user_level, level_guidance["beginner"])}
-
-OUTPUT FORMAT:
-Use markdown with clear sections:
-1. **Why** — Explain the concept and why it matters
-2. **How** — Step-by-step in Ableton Live 12
-3. **Settings** — Specific parameter values to start with
-4. **Common Mistakes** — What beginners get wrong
-5. **Related** — What to explore next
-
-RULES:
-- Always explain *why* before *how*
-- Give specific numbers (frequencies, ratios, ms values), not vague advice
-- Reverb and delay go on return tracks, never inserts (for this genre context)
-- Include Ableton-specific paths when referencing effects or instruments
-- Reference automation strategies by song section when relevant
-- Reference artist-specific techniques when the question relates to a particular style
 
 GROUNDING CONTEXT:
 {grounding_text}"""

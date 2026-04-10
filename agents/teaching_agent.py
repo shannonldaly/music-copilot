@@ -15,7 +15,7 @@ Adapts over time:
 """
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Dict, Optional, Any
 from pathlib import Path
 
@@ -26,7 +26,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.tokens import TokenTracker, log_api_call
-from utils.models import ModelConfig, TaskType, get_model_for_task, SONNET
+from utils.models import ModelConfig, TaskType, get_model_for_task
 from utils.logging import log_agent_call
 
 

@@ -84,6 +84,42 @@ ARTIST_DISPLAY_NAMES = {
 # Blend trigger words — patterns like "X meets Y", "X and Y", "X x Y"
 BLEND_PATTERNS = [' meets ', ' x ', ' and ', ' + ', ' with ', ' vs ']
 
+# Intent detection keyword lists
+MOOD_KEYWORDS = ['melancholic', 'happy', 'sad', 'dark', 'chill', 'uplifting',
+                 'epic', 'dreamy', 'nostalgic', 'aggressive', 'romantic']
+GENRE_KEYWORDS = ['lo-fi', 'lofi', 'trap', 'jazz', 'rock', 'pop', 'edm',
+                  'house', 'hip-hop', 'hip hop', 'r&b', 'classical', 'ambient']
+DRUM_KEYWORDS = ['beat', 'drum', 'rhythm', 'pattern', 'groove']
+SOUND_ENGINEERING_KEYWORDS = [
+    'mix', 'eq', 'compress', 'reverb', 'automate', 'automation',
+    'filter', 'frequency', 'sidechain', 'oscillator', 'synthesis',
+    'sound design', 'plugin', 'bass eq', 'kick eq', 'high-pass',
+    'low-pass', 'gain staging', 'lufs', 'mastering',
+]
+PRODUCTION_KEYWORDS = ['how do i', 'how to']
+
+# Intent confidence scores
+CONFIDENCE_ARTIST_BLEND = 0.95
+CONFIDENCE_SOUND_ENGINEERING = 0.9
+CONFIDENCE_PRODUCTION = 0.8
+CONFIDENCE_DRUM = 0.85
+CONFIDENCE_ARTIST_REF = 0.9
+CONFIDENCE_MOOD_VIBE = 0.9
+CONFIDENCE_FALLBACK = 0.5
+
+# Key inference defaults
+MINOR_GENRES = {'lo_fi', 'lofi', 'trap', 'hip_hop', 'emo_rap', 'ambient'}
+MAJOR_GENRES = {'pop', 'edm', 'house', 'dance', 'k_pop', 'j_pop'}
+MINOR_MOODS = {'melancholic', 'sad', 'dark', 'nostalgic', 'aggressive'}
+MAJOR_MOODS = {'happy', 'uplifting', 'epic', 'romantic'}
+DEFAULT_MINOR_KEY = ('A', 'minor')
+DEFAULT_MAJOR_KEY = ('C', 'major')
+FALLBACK_KEY = ('C', 'major')
+
+# Query limits
+MAX_RESULTS = 3
+DEFAULT_OCTAVE = 3
+
 
 def _extract_key_from_prompt(prompt: str) -> Optional[str]:
     """
@@ -225,21 +261,6 @@ class Orchestrator:
         Returns (intent_type, confidence, extracted_data).
         """
         prompt_lower = prompt.lower()
-
-        # Keywords for each intent
-        mood_keywords = ['melancholic', 'happy', 'sad', 'dark', 'chill', 'uplifting',
-                         'epic', 'dreamy', 'nostalgic', 'aggressive', 'romantic']
-        genre_keywords = ['lo-fi', 'lofi', 'trap', 'jazz', 'rock', 'pop', 'edm',
-                          'house', 'hip-hop', 'hip hop', 'r&b', 'classical', 'ambient']
-        drum_keywords = ['beat', 'drum', 'rhythm', 'pattern', 'groove']
-        sound_engineering_keywords = [
-            'mix', 'eq', 'compress', 'reverb', 'automate', 'automation',
-            'filter', 'frequency', 'sidechain', 'oscillator', 'synthesis',
-            'sound design', 'plugin', 'bass eq', 'kick eq', 'high-pass',
-            'low-pass', 'gain staging', 'lufs', 'mastering',
-        ]
-        production_keywords = ['how do i', 'how to']
-
         extracted = {'moods': [], 'genres': []}
 
         # Extract explicit key if specified
@@ -253,45 +274,38 @@ class Orchestrator:
             extracted['artists'] = artists
 
         # Check for moods
-        for mood in mood_keywords:
+        for mood in MOOD_KEYWORDS:
             if mood in prompt_lower:
                 extracted['moods'].append(mood)
 
         # Check for genres
-        for genre in genre_keywords:
+        for genre in GENRE_KEYWORDS:
             if genre in prompt_lower:
                 extracted['genres'].append(genre.replace('-', '_'))
 
         # --- Determine intent type (order matters: most specific first) ---
 
-        # Artist blend: two or more artists + a blend trigger word
         if len(artists) >= 2 and any(bp in prompt_lower for bp in BLEND_PATTERNS):
-            return ('artist_blend', 0.95, extracted)
+            return ('artist_blend', CONFIDENCE_ARTIST_BLEND, extracted)
 
-        # Sound engineering: specific mixing/production technique questions
-        if any(kw in prompt_lower for kw in sound_engineering_keywords):
+        if any(kw in prompt_lower for kw in SOUND_ENGINEERING_KEYWORDS):
             extracted['question'] = prompt
-            return ('sound_engineering', 0.9, extracted)
+            return ('sound_engineering', CONFIDENCE_SOUND_ENGINEERING, extracted)
 
-        # General production question (how-to without a specific SE keyword)
-        if any(kw in prompt_lower for kw in production_keywords):
-            return ('production_question', 0.8, extracted)
+        if any(kw in prompt_lower for kw in PRODUCTION_KEYWORDS):
+            return ('production_question', CONFIDENCE_PRODUCTION, extracted)
 
-        # Drum patterns
-        if any(kw in prompt_lower for kw in drum_keywords):
+        if any(kw in prompt_lower for kw in DRUM_KEYWORDS):
             extracted['genres'] = extracted['genres'] or ['trap']
-            return ('drum_pattern', 0.85, extracted)
+            return ('drum_pattern', CONFIDENCE_DRUM, extracted)
 
-        # Single artist reference (not a blend)
         if len(artists) == 1:
-            return ('artist_reference', 0.9, extracted)
+            return ('artist_reference', CONFIDENCE_ARTIST_REF, extracted)
 
-        # Mood/genre/key
         if extracted['moods'] or extracted['genres'] or extracted.get('key'):
-            return ('mood_vibe', 0.9, extracted)
+            return ('mood_vibe', CONFIDENCE_MOOD_VIBE, extracted)
 
-        # Default
-        return ('mood_vibe', 0.5, {'moods': [], 'genres': []})
+        return ('mood_vibe', CONFIDENCE_FALLBACK, {'moods': [], 'genres': []})
 
     # =========================================================================
     # execute() — full pipeline: intent → lookup → agents → response dict
@@ -354,23 +368,17 @@ class Orchestrator:
                 key_root = key_parts[0]
                 key_mode = key_parts[1] if len(key_parts) > 1 else 'minor'
             else:
-                minor_genres = {'lo_fi', 'lofi', 'trap', 'hip_hop', 'emo_rap', 'ambient'}
-                major_genres = {'pop', 'edm', 'house', 'dance', 'k_pop', 'j_pop'}
                 genre_set = set(genres)
-
-                minor_moods = {'melancholic', 'sad', 'dark', 'nostalgic', 'aggressive'}
-                major_moods = {'happy', 'uplifting', 'epic', 'romantic'}
-
-                if genre_set & minor_genres:
-                    key_root, key_mode = 'A', 'minor'
-                elif genre_set & major_genres:
-                    key_root, key_mode = 'C', 'major'
-                elif set(moods) & minor_moods:
-                    key_root, key_mode = 'A', 'minor'
-                elif set(moods) & major_moods:
-                    key_root, key_mode = 'C', 'major'
+                if genre_set & MINOR_GENRES:
+                    key_root, key_mode = DEFAULT_MINOR_KEY
+                elif genre_set & MAJOR_GENRES:
+                    key_root, key_mode = DEFAULT_MAJOR_KEY
+                elif set(moods) & MINOR_MOODS:
+                    key_root, key_mode = DEFAULT_MINOR_KEY
+                elif set(moods) & MAJOR_MOODS:
+                    key_root, key_mode = DEFAULT_MAJOR_KEY
                 else:
-                    key_root, key_mode = 'C', 'major'
+                    key_root, key_mode = FALLBACK_KEY
 
             logger.info(f"Key resolved: {key_root} {key_mode} (source={'user' if extracted.get('key') else 'inferred'})")
             progressions = []
@@ -396,9 +404,9 @@ class Orchestrator:
                     unique.append(p)
 
             local_data['progressions'] = []
-            for prog in unique[:3]:
+            for prog in unique[:MAX_RESULTS]:
                 try:
-                    chords = get_progression_chords(prog.numerals, key_root, prog.key_type, octave=3)
+                    chords = get_progression_chords(prog.numerals, key_root, prog.key_type, octave=DEFAULT_OCTAVE)
                     local_data['progressions'].append({
                         'name': prog.name,
                         'numerals': prog.numerals,
@@ -427,7 +435,7 @@ class Orchestrator:
                     unique.append(p)
 
             local_data['drum_patterns'] = []
-            for pattern in unique[:3]:
+            for pattern in unique[:MAX_RESULTS]:
                 local_data['drum_patterns'].append({
                     'name': pattern.name,
                     'description': pattern.description,
@@ -483,10 +491,10 @@ class Orchestrator:
                             unique.append(p)
 
                     local_data['progressions'] = []
-                    for prog in unique[:3]:
+                    for prog in unique[:MAX_RESULTS]:
                         try:
                             chords = get_progression_chords(
-                                prog.numerals, key_root, prog.key_type, octave=3
+                                prog.numerals, key_root, prog.key_type, octave=DEFAULT_OCTAVE
                             )
                             local_data['progressions'].append({
                                 'name': prog.name,
@@ -763,7 +771,8 @@ Respond with valid JSON only."""
             model=HAIKU,
             max_tokens=500,
             system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}]
+            messages=[{"role": "user", "content": user_prompt}],
+            timeout=30.0,
         )
 
         # Log the API call
@@ -910,7 +919,7 @@ Respond with valid JSON only."""
                             prog.numerals,
                             key_note,
                             prog.key_type,
-                            octave=3
+                            octave=DEFAULT_OCTAVE
                         )
                         result["progressions"].append({
                             "name": prog.name,

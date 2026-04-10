@@ -11,6 +11,7 @@ v2: SQLite/Postgres for better querying
 """
 
 import json
+import logging
 import os
 import sys
 import uuid
@@ -21,6 +22,8 @@ from typing import List, Dict, Optional, Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.logging import log_agent_call
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -186,8 +189,8 @@ class SessionManager:
                     "updated_at": data["updated_at"],
                     "history_count": len(data.get("history", [])),
                 })
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Skipped corrupt session file {path.name}: {e}")
         return sorted(sessions, key=lambda x: x["updated_at"], reverse=True)
 
     @log_agent_call
