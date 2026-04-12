@@ -3,11 +3,12 @@ FastAPI Backend — Music Co-Pilot API
 
 Endpoints:
 - POST /api/generate - Main generation endpoint (orchestrator → agents)
+- POST /api/send-to-ableton - Send progression to Ableton via MCP
 - POST /api/session - Create new session
 - PATCH /api/session/{id} - Update session (e.g. song_name)
 - GET /api/session/{id} - Get session
 - POST /api/feedback - Record feedback on output
-- GET /api/health - Health check
+- GET /api/health - Health check (music21, API key, Ableton connection)
 
 Run with:
     uvicorn api.main:app --reload --port 8000
@@ -30,6 +31,7 @@ from api.progression_utils import expand_chords_from_names
 
 from agents.orchestrator import Orchestrator
 from memory import SessionManager, get_or_create_session, UserProfile, ProjectContext
+from services.mcp_client import AbletonMCPClient
 
 
 # =============================================================================
@@ -200,12 +202,16 @@ async def health_check():
     # Check API key (don't call the API, just verify env var exists)
     checks["api_key_configured"] = bool(os.environ.get("ANTHROPIC_API_KEY"))
 
+    # Check Ableton MCP connection
+    checks["ableton_connected"] = AbletonMCPClient().is_connected()
+
     all_ok = all(checks.values())
 
     return {
         "status": "ok" if all_ok else "degraded",
         "music21": checks["music21"],
         "api_key_configured": checks["api_key_configured"],
+        "ableton_connected": checks["ableton_connected"],
         "timestamp": datetime.now().isoformat(),
         "version": "0.1.0",
     }
@@ -243,6 +249,25 @@ async def generate(request: GenerateRequest):
 
     result.setdefault("key_was_specified", False)
     return GenerateResponse(**result)
+
+
+class SendToAbletonRequest(BaseModel):
+    """Send the current progression to Ableton via MCP."""
+    progression: Dict = Field(..., description="Progression dict with 'chords' list (each chord has name, numeral, note_names)")
+    bpm: int = Field(120, description="Tempo in BPM")
+
+
+@app.post("/api/send-to-ableton")
+async def send_to_ableton(request: SendToAbletonRequest):
+    """Send a chord progression to Ableton Live via the MCP socket server.
+
+    Creates a MIDI track named 'Rubato Chords', sets the tempo, creates a clip,
+    and adds all chord notes. Returns {success, message}.
+    If Ableton is not running, returns graceful failure.
+    """
+    client = AbletonMCPClient()
+    result = client.send_progression_to_ableton(request.progression, bpm=request.bpm)
+    return {"success": result["success"], "message": result["message"]}
 
 
 @app.post("/api/session", response_model=SessionResponse)
