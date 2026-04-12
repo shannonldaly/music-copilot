@@ -88,10 +88,11 @@ def test_note_name_to_midi_invalid():
 # =============================================================================
 
 def test_send_progression_command_sequence(sample_progression):
-    """Verify the exact command sequence: set_tempo → create_track → create_clip → add_notes × 2."""
+    """Verify the exact command sequence: set_tempo → create_track → load_instrument → create_clip → add_notes × 2."""
     responses = [
         {"status": "success", "result": {"tempo": 80.0}},
         {"status": "success", "result": {"index": 3, "name": "4-MIDI"}},
+        {"status": "success", "result": {"loaded": True, "item_name": "Pad", "uri": "query:Sounds#Pad"}},
         {"status": "success", "result": {"name": "", "length": 8.0}},
         {"status": "success", "result": {"note_count": 3}},
         {"status": "success", "result": {"note_count": 3}},
@@ -107,7 +108,7 @@ def test_send_progression_command_sequence(sample_progression):
     assert "6 notes" in result["message"]
 
     # Verify command count
-    assert len(sent_commands) == 5
+    assert len(sent_commands) == 6
 
     # Command 1: set_tempo
     assert sent_commands[0] == {"type": "set_tempo", "params": {"tempo": 80}}
@@ -115,14 +116,20 @@ def test_send_progression_command_sequence(sample_progression):
     # Command 2: create_midi_track
     assert sent_commands[1] == {"type": "create_midi_track", "params": {"name": "Rubato Chords"}}
 
-    # Command 3: create_clip — must use returned track_index 3
+    # Command 3: load_browser_item (instrument)
     assert sent_commands[2] == {
+        "type": "load_browser_item",
+        "params": {"item_uri": "query:Sounds#Pad", "track_index": 3},
+    }
+
+    # Command 4: create_clip — must use returned track_index 3
+    assert sent_commands[3] == {
         "type": "create_clip",
         "params": {"track_index": 3, "clip_index": 0, "length": 8},
     }
 
-    # Command 4: add_notes — chord 1 (Am: A3=57, C4=60, E4=64)
-    cmd4 = sent_commands[3]
+    # Command 5: add_notes — chord 1 (Am: A3=57, C4=60, E4=64)
+    cmd4 = sent_commands[4]
     assert cmd4["type"] == "add_notes_to_clip"
     assert cmd4["params"]["track_index"] == 3
     assert cmd4["params"]["clip_index"] == 0
@@ -132,8 +139,8 @@ def test_send_progression_command_sequence(sample_progression):
     assert notes_1[1] == {"pitch": 60, "start_time": 0.0, "duration": 4.0, "velocity": 100}
     assert notes_1[2] == {"pitch": 64, "start_time": 0.0, "duration": 4.0, "velocity": 100}
 
-    # Command 5: add_notes — chord 2 (F: F3=53, A3=57, C4=60), start_time=4.0
-    cmd5 = sent_commands[4]
+    # Command 6: add_notes — chord 2 (F: F3=53, A3=57, C4=60), start_time=4.0
+    cmd5 = sent_commands[5]
     notes_2 = cmd5["params"]["notes"]
     assert len(notes_2) == 3
     assert notes_2[0] == {"pitch": 53, "start_time": 4.0, "duration": 4.0, "velocity": 100}
@@ -146,6 +153,7 @@ def test_track_index_propagated_from_server(sample_progression):
     responses = [
         {"status": "success", "result": {"tempo": 85.0}},
         {"status": "success", "result": {"index": 7, "name": "8-MIDI"}},  # Track 7
+        {"status": "success", "result": {"loaded": True, "item_name": "Pad"}},
         {"status": "success", "result": {"name": "", "length": 8.0}},
         {"status": "success", "result": {"note_count": 3}},
         {"status": "success", "result": {"note_count": 3}},
@@ -156,11 +164,13 @@ def test_track_index_propagated_from_server(sample_progression):
         client = AbletonMCPClient()
         client.send_progression_to_ableton(sample_progression, bpm=85)
 
-    # create_clip must use track_index 7
+    # load_browser_item must use track_index 7
     assert sent_commands[2]["params"]["track_index"] == 7
-    # add_notes must use track_index 7
+    # create_clip must use track_index 7
     assert sent_commands[3]["params"]["track_index"] == 7
+    # add_notes must use track_index 7
     assert sent_commands[4]["params"]["track_index"] == 7
+    assert sent_commands[5]["params"]["track_index"] == 7
 
 
 # =============================================================================

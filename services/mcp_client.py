@@ -79,13 +79,7 @@ class AbletonMCPClient:
         Returns:
             {success: bool, message: str}
         """
-        # DEBUG: log exactly what the MCP client receives
-        logger.warning(f"DEBUG MCP input: keys={list(progression_data.keys())}, bpm={bpm}")
         chords = progression_data.get("chords", [])
-        logger.warning(f"DEBUG MCP chords: count={len(chords)}")
-        for i, ch in enumerate(chords):
-            logger.warning(f"DEBUG MCP chord {i}: name={ch.get('name')}, note_names={ch.get('note_names')}, notes={ch.get('notes')}, keys={list(ch.keys())}")
-
         if not chords:
             return {"success": False, "message": "No chords in progression data"}
 
@@ -103,7 +97,17 @@ class AbletonMCPClient:
         track_index = result["data"].get("index", 0)
         logger.info(f"MCP: created track at index {track_index}")
 
-        # Step 3: Create clip
+        # Step 3: Load instrument (pad sound for chord playback)
+        result = self._send_command("load_browser_item", {
+            "item_uri": "query:Sounds#Pad",
+            "track_index": track_index,
+        })
+        if not result["success"]:
+            logger.warning(f"MCP: instrument load failed ({result['message']}), continuing without instrument")
+        else:
+            logger.info(f"MCP: loaded instrument: {result['data'].get('item_name', 'Pad')}")
+
+        # Step 4: Create clip
         clip_length = len(chords) * 4  # 4 beats per chord (1 bar each)
         result = self._send_command("create_clip", {
             "track_index": track_index,
