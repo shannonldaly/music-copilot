@@ -1,12 +1,14 @@
 # Music Co-Pilot Agent Modules
+#
+# Facade: external callers import from this package, never from sub-modules.
+# Internal module structure may change without breaking external imports.
 
-from .orchestrator import (
-    Orchestrator,
+from .orchestrator import Orchestrator, quick_process
+from .intent_detection import (
     IntentType,
     ParsedIntent,
     RoutingPlan,
     OrchestratorResult,
-    quick_process,
 )
 from .production_agent import (
     ProductionAgent,
