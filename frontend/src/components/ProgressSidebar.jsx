@@ -77,6 +77,7 @@ function StageRow({
       tabIndex={rowNavigable ? 0 : undefined}
       onClick={rowNavigable ? () => onConfirmedStageClick(id) : undefined}
       onKeyDown={rowNavigable ? handleRowKeyDown : undefined}
+      data-testid={`stage-row-${id}`}
     >
       <div className={styles.stageHead}>
         {doneConfirmed ? (
@@ -241,7 +242,7 @@ export default function ProgressSidebar({
   const inProgress = seq.find((id) => stages[id]?.status === 'active');
 
   return (
-    <aside className={styles.sidebar}>
+    <aside className={styles.sidebar} data-testid="progress-sidebar">
       <SongNameField sessionId={sessionId} songName={songName} onSaved={onSongNameSaved} />
 
       <div className={styles.modePill}>{MODE_BADGE_LABEL[sessionMode] || sessionMode}</div>

@@ -140,6 +140,67 @@
   margin-top: calc(-1 * var(--space-sm));
 }
 
+.sendAbletonWrap {
+  margin-top: var(--space-sm);
+}
+
+.sendAbletonBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 18px;
+  background: var(--color-accent-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-bg-base);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.sendAbletonBtn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.sendAbletonBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sendAbletonBtnFlash {
+  animation: sendAbletonOkFlash 0.35s ease;
+}
+
+@keyframes sendAbletonOkFlash {
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  40% {
+    box-shadow: 0 0 0 3px rgba(62, 180, 137, 0.75);
+  }
+}
+
+.sendAbletonIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.sendAbletonCheck {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: #3eb489;
+}
+
+.sendAbletonErr {
+  margin: var(--space-xs) 0 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #c94d22;
+}
+
 .badge {
   font-size: 11px;
   font-weight: 500;

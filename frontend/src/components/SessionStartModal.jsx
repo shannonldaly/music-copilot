@@ -31,31 +31,15 @@ function IconDrum() {
       aria-hidden
       focusable="false"
     >
-      <line
-        x1="6"
-        y1="3.5"
-        x2="7.5"
-        y2="6.5"
-        stroke="var(--color-accent-primary)"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-      <line
-        x1="14"
-        y1="3.5"
-        x2="12.5"
-        y2="6.5"
-        stroke="var(--color-accent-primary)"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
+      <circle cx="10" cy="10" r="7.5" fill="var(--color-accent-primary)" />
       <circle
         cx="10"
-        cy="12.5"
-        r="5"
+        cy="10"
+        r="4.75"
         fill="none"
         stroke="var(--color-accent-primary)"
-        strokeWidth="1.6"
+        strokeWidth="1.35"
+        strokeOpacity={0.5}
       />
     </svg>
   );
@@ -131,7 +115,13 @@ export default function SessionStartModal({ open, selected, onSelect, onContinue
   if (!open) return null;
 
   return (
-    <div className={styles.overlay} role="dialog" aria-modal="true" aria-labelledby="session-modal-title">
+    <div
+      className={styles.overlay}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="session-modal-title"
+      data-testid="session-modal"
+    >
       <div className={`${styles.card} ${animateIn ? styles.cardEnter : ''}`}>
         <div className={styles.tabs}>
           <button
@@ -165,6 +155,7 @@ export default function SessionStartModal({ open, selected, onSelect, onContinue
                     type="button"
                     className={`${styles.option} ${selected === o.id ? styles.optionSelected : ''}`}
                     onClick={() => onSelect(o.id)}
+                    data-testid={`session-mode-${o.id}`}
                   >
                     {selected === o.id ? (
                       <span className={styles.checkMark} aria-hidden>
@@ -193,6 +184,7 @@ export default function SessionStartModal({ open, selected, onSelect, onContinue
               className={styles.continue}
               disabled={!selected}
               onClick={onContinue}
+              data-testid="session-modal-continue"
             >
               Continue
             </button>

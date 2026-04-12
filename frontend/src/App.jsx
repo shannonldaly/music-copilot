@@ -743,9 +743,15 @@ export default function App() {
                 {showSoundEngPanel || showArtistBlendPanel ? (
                   <div className={styles.panelsSecondary}>
                     {showSoundEngPanel ? (
-                      <SoundEngineeringPanel data={soundEngPayload} />
+                      <div data-testid="sound-engineering-panel">
+                        <SoundEngineeringPanel data={soundEngPayload} />
+                      </div>
                     ) : null}
-                    {showArtistBlendPanel ? <ArtistBlendPanel data={artistBlendPayload} /> : null}
+                    {showArtistBlendPanel ? (
+                      <div data-testid="artist-blend-panel">
+                        <ArtistBlendPanel data={artistBlendPayload} />
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </>

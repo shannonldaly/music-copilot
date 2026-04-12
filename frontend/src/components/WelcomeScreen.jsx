@@ -37,7 +37,12 @@ export default function WelcomeScreen({ visible, exiting, onStart }) {
           Rubato
         </h1>
         <p className={styles.tagline}>Builds the blueprint. You build the track.</p>
-        <button type="button" className={styles.startBtn} onClick={onStart}>
+        <button
+          type="button"
+          className={styles.startBtn}
+          onClick={onStart}
+          data-testid="welcome-start-button"
+        >
           Start a session
         </button>
       </div>

@@ -131,3 +131,9 @@ export async function expandProgression({ chords, key, progression_name, session
   });
   return data;
 }
+
+/** POST /api/send-to-ableton — progression dict with chords (name, numeral, note_names). */
+export async function sendProgressionToAbleton({ progression, bpm }) {
+  const { data } = await api.post('/api/send-to-ableton', { progression, bpm });
+  return data;
+}

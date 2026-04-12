@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AlsoTryList from './AlsoTryList';
 import ChordCard from './ChordCard';
 import MelodyDirectionPanel from './MelodyDirectionPanel';
 import { FormattedTeaching } from '../utils/markdownLite';
 import { extractNumberedSteps } from '../utils/normalize';
 import { buildDrumRows } from '../utils/drums';
+import { sendProgressionToAbleton } from '../utils/api';
 import styles from './MainWorkspace.module.css';
 
 const EXAMPLE_PROMPTS = ['melancholic lo-fi', 'something like Massive Attack', 'uplifting in D major'];
@@ -33,6 +34,50 @@ function voiceLeadingBulletLines(text) {
   return lines.length ? lines : [`• ${s}`];
 }
 
+function buildProgressionPayload(chordList, m) {
+  return {
+    key: m?.key,
+    progression_name: m?.progression_name,
+    chords: chordList.map((c) => ({
+      name: c.name,
+      numeral: c.numeral,
+      note_names: c.notes || c.note_names || [],
+    })),
+  };
+}
+
+function parseSendToAbletonError(e) {
+  const d = e?.response?.data?.detail;
+  if (typeof d === 'string') return d;
+  if (Array.isArray(d)) return d.map((x) => (typeof x === 'object' && x?.msg ? x.msg : String(x))).join(', ');
+  if (d && typeof d === 'object') return JSON.stringify(d);
+  return e?.message || 'Request failed';
+}
+
+function AbletonMarkIcon() {
+  return (
+    <svg className={styles.sendAbletonIcon} width={14} height={14} viewBox="0 0 14 14" aria-hidden>
+      <circle cx="5.25" cy="7" r="3.25" fill="currentColor" />
+      <circle cx="8.75" cy="7" r="3.25" fill="currentColor" />
+    </svg>
+  );
+}
+
+function SendOkCheckIcon() {
+  return (
+    <svg className={styles.sendAbletonCheck} width={14} height={14} viewBox="0 0 14 14" aria-hidden>
+      <path
+        d="M3 7.2 L6.2 10.2 L11.2 4.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export default function MainWorkspace({
   sessionId,
   sessionMode,
@@ -54,6 +99,16 @@ export default function MainWorkspace({
   onExitHistory,
 }) {
   const [abletonOpen, setAbletonOpen] = useState(false);
+  const [abletonSendUi, setAbletonSendUi] = useState('idle');
+  const [abletonSendErr, setAbletonSendErr] = useState(null);
+  const abletonTimersRef = useRef([]);
+
+  const clearAbletonTimers = () => {
+    abletonTimersRef.current.forEach(clearTimeout);
+    abletonTimersRef.current = [];
+  };
+
+  useEffect(() => () => clearAbletonTimers(), []);
 
   const isDrums = model?.mode === 'drums';
   const drumGrid = model?.drumPattern?.grid;
@@ -92,6 +147,40 @@ export default function MainWorkspace({
   const hasAbletonSteps = numberedSteps.length > 0;
   const hasProductionMarkdown = !!(productionMarkdown && String(productionMarkdown).trim());
 
+  const handleSendToAbleton = useCallback(async () => {
+    clearAbletonTimers();
+    setAbletonSendErr(null);
+    setAbletonSendUi('sending');
+    const bpmRaw = Number(model?.bpm);
+    const bpm = Number.isFinite(bpmRaw) && bpmRaw > 0 ? Math.round(bpmRaw) : 120;
+    const progression = buildProgressionPayload(list, model);
+    try {
+      const data = await sendProgressionToAbleton({ progression, bpm });
+      if (!data?.success) {
+        const msg = data?.message || 'Could not send to Ableton';
+        setAbletonSendErr(msg);
+        abletonTimersRef.current.push(
+          window.setTimeout(() => setAbletonSendErr(null), 3000)
+        );
+        setAbletonSendUi('idle');
+        return;
+      }
+      setAbletonSendUi('flash');
+      abletonTimersRef.current.push(
+        window.setTimeout(() => {
+          setAbletonSendUi('sent');
+          abletonTimersRef.current.push(
+            window.setTimeout(() => setAbletonSendUi('idle'), 2000)
+          );
+        }, 350)
+      );
+    } catch (e) {
+      setAbletonSendErr(parseSendToAbletonError(e));
+      abletonTimersRef.current.push(window.setTimeout(() => setAbletonSendErr(null), 3000));
+      setAbletonSendUi('idle');
+    }
+  }, [list, model]);
+
   if (!hasContentGeneration) {
     return (
       <div className={styles.emptyRoot}>
@@ -125,7 +214,7 @@ export default function MainWorkspace({
 
       {showChordRow ? (
         <>
-          <div className={styles.chordRow}>
+          <div className={styles.chordRow} data-testid="chord-row">
             {list.map((c, i) => (
               <ChordCard
                 key={`${c.name}-${i}`}
@@ -138,7 +227,9 @@ export default function MainWorkspace({
           </div>
           {expandLoading ? <p className={styles.expandLoading}>Updating notes…</p> : null}
           <div className={styles.validationRow}>
-            <span className={styles.badge}>music21</span>
+            <span className={styles.badge} data-testid="validation-badge">
+              music21
+            </span>
             {validationBadge === 'na_drums' ? (
               <span className={styles.neutral}>N/A — drum pattern</span>
             ) : validation ? (
@@ -149,12 +240,43 @@ export default function MainWorkspace({
               <span className={styles.neutral}>—</span>
             )}
           </div>
+          <div className={styles.sendAbletonWrap}>
+            <button
+              type="button"
+              className={`${styles.sendAbletonBtn} ${abletonSendUi === 'flash' ? styles.sendAbletonBtnFlash : ''}`}
+              disabled={abletonSendUi === 'sending' || abletonSendUi === 'flash' || abletonSendUi === 'sent'}
+              onClick={handleSendToAbleton}
+              aria-label={
+                abletonSendUi === 'sending'
+                  ? 'Sending to Ableton'
+                  : abletonSendUi === 'flash'
+                    ? 'Sent to Ableton'
+                    : abletonSendUi === 'sent'
+                      ? 'Sent to Ableton'
+                      : 'Send progression to Ableton'
+              }
+            >
+              {abletonSendUi === 'flash' ? (
+                <SendOkCheckIcon />
+              ) : abletonSendUi === 'sent' ? null : (
+                <AbletonMarkIcon />
+              )}
+              {abletonSendUi === 'sending'
+                ? 'Sending...'
+                : abletonSendUi === 'flash'
+                  ? ''
+                  : abletonSendUi === 'sent'
+                    ? 'Sent to Ableton ✓'
+                    : 'Send to Ableton'}
+            </button>
+            {abletonSendErr ? <p className={styles.sendAbletonErr}>{abletonSendErr}</p> : null}
+          </div>
         </>
       ) : null}
 
       {showDrumGrid ? (
         <>
-          <div className={styles.drumBlock}>
+          <div className={styles.drumBlock} data-testid="drum-grid-block">
             <div className={styles.drumSection}>
               <div className={styles.stepHeader}>
                 <span className={styles.stepCorner} aria-hidden />
@@ -213,7 +335,7 @@ export default function MainWorkspace({
       ) : null}
 
       {showAlsoTry ? (
-        <div className={styles.alsoTryWrap}>
+        <div className={styles.alsoTryWrap} data-testid="also-try-section">
           <AlsoTryList
             alternatives={alternatives}
             onPick={(alt) => onAlsoTryPick(alt)}
@@ -223,12 +345,14 @@ export default function MainWorkspace({
       ) : null}
 
       {showMelody ? (
-        <MelodyDirectionPanel
-          key={sessionId ? `${sessionId}-melody` : 'melody'}
-          data={melodyDirection}
-          animateIntro={melodyIntroActive}
-          onIntroComplete={onMelodyIntroComplete}
-        />
+        <div data-testid="melody-direction-panel">
+          <MelodyDirectionPanel
+            key={sessionId ? `${sessionId}-melody` : 'melody'}
+            data={melodyDirection}
+            animateIntro={melodyIntroActive}
+            onIntroComplete={onMelodyIntroComplete}
+          />
+        </div>
       ) : null}
 
       {hasTheoryText ? (
@@ -252,13 +376,13 @@ export default function MainWorkspace({
       ) : null}
 
       {hasTeachingText ? (
-        <div className={styles.teachPanel}>
+        <div className={styles.teachPanel} data-testid="teaching-note-section">
           <FormattedTeaching className={styles.teachBody}>{teachingNote}</FormattedTeaching>
         </div>
       ) : null}
 
       {hasAbletonSteps || hasProductionMarkdown ? (
-        <div className={styles.abletonShell}>
+        <div className={styles.abletonShell} data-testid="ableton-steps-section">
           <button
             type="button"
             className={styles.abletonToggle}

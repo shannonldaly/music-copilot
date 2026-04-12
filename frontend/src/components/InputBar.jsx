@@ -35,6 +35,7 @@ export default function InputBar({
         className={styles.input}
         type="text"
         placeholder="Describe a vibe, genre, or what you want to make…"
+        data-testid="prompt-input"
         value={value}
         onChange={(e) => {
           if (onDismissPostKeepOverlay) tryDismissOverlay();
@@ -61,6 +62,7 @@ export default function InputBar({
           className={`${styles.btn} ${confirm ? styles.btnKeepLead : ''}`}
           onClick={onKeep}
           disabled={disabled}
+          data-testid="keep-button"
         >
           Keep
         </button>
@@ -85,6 +87,7 @@ export default function InputBar({
           className={styles.generate}
           onClick={onGenerate}
           disabled={loading || !value.trim()}
+          data-testid="generate-button"
         >
           {loading ? '…' : 'Generate'}
         </button>
