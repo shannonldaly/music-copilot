@@ -79,7 +79,13 @@ class AbletonMCPClient:
         Returns:
             {success: bool, message: str}
         """
+        # DEBUG: log exactly what the MCP client receives
+        logger.warning(f"DEBUG MCP input: keys={list(progression_data.keys())}, bpm={bpm}")
         chords = progression_data.get("chords", [])
+        logger.warning(f"DEBUG MCP chords: count={len(chords)}")
+        for i, ch in enumerate(chords):
+            logger.warning(f"DEBUG MCP chord {i}: name={ch.get('name')}, note_names={ch.get('note_names')}, notes={ch.get('notes')}, keys={list(ch.keys())}")
+
         if not chords:
             return {"success": False, "message": "No chords in progression data"}
 
@@ -179,7 +185,7 @@ class AbletonMCPClient:
             sock.settimeout(SOCKET_TIMEOUT)
             sock.connect((self.host, self.port))
 
-            payload = json.dumps(command).encode("utf-8")
+            payload = json.dumps(command).encode("utf-8") + b"\n"
             sock.sendall(payload)
 
             response_bytes = sock.recv(BUFFER_SIZE)
