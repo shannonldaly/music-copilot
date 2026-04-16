@@ -568,3 +568,72 @@ Phases 3a through 3c are not complete until ALL of the following pass:
 - [ ] BACKLOG.md and decisions/ up to date with all Phase 3 decisions
 
 Only after all boxes are checked: begin Phase 4 MCP Integration.
+
+---
+
+## UX Design Reference — Phase 3b
+
+### The Five JTBD Screen Questions
+
+For every screen or state in the product, answer:
+
+1. What job is the user hiring this screen to do?
+The job is always a verb. "Understand what to play next." "Confirm my progression is locked." "Find a sound engineering answer." Not "show chord cards."
+
+2. What did they just come from?
+What mental state are they in? Confused? Excited? Waiting? This determines the tone and the dominant action.
+
+3. What do they need to feel at this moment?
+Confident? Guided? In control? Surprised? Design serves emotion first, function second.
+
+4. What is the one action they should take?
+If there are three equally weighted buttons, there is no clear action. One thing should be obvious.
+
+5. Where do they go next?
+Every screen should have a clear exit. Dead ends kill momentum.
+
+### Rubato User Journey
+
+Map the emotional arc, not just the steps:
+
+Open app → First generation (first moment of value) → Keep or try alternative (decision) → Stage advances (commitment) → Blueprint complete (reward)
+
+At each step ask: what could go wrong here? What does the user do if they're confused? Is there a recovery path?
+
+### Rubato Design Principles
+
+1. One thing at a time — each stage is a focused moment, not a dashboard
+2. Decisions feel real — every Keep, every choice should have visible weight
+3. The tool respects the musician — it guides without condescending, teaches without lecturing
+4. Dark and warm, not dark and cold — functional doesn't mean sterile
+
+### UI Swipe File — Reference Products
+
+Rubato's target aesthetic: Dark. Functional. Warm but precise. Feels like a professional tool someone loves using daily, not a toy and not a terminal. Orange as a signal of action and decision, not decoration.
+
+| Product | What to Steal | Why It's Relevant |
+|---|---|---|
+| Ableton Live | Dark palette, orange accents, mono typography, functional density | Your users live here — Rubato should feel like it belongs in the same world |
+| Linear | Dark mode done right, clean hierarchy, subtle hover states, text that breathes | Shows how dark + clean looks designed not gloomy |
+| Vercel dashboard | Developer tool that feels premium, information density without overwhelm | Proves functional tools can have design investment |
+| Pitch | Creative tool with strong visual identity, confident typography | Shows how a creative product establishes personality |
+| Native Instruments Maschine | Music production software with real design investment, tactile feel | Direct genre reference |
+
+### UX Design Vocabulary for Cursor Prompts
+
+- Visual hierarchy — the order the eye moves. Big = important, small = secondary.
+- Whitespace — empty space is not wasted. It separates ideas and reduces cognitive load.
+- Affordance — does it look like it can be interacted with? Buttons look pressable. Cards look tappable.
+- Feedback — every action needs a visible response. Click → something changes.
+- Progressive disclosure — show what's needed now, reveal more when relevant.
+- Consistency — same action, same visual treatment, always.
+
+### UX Design Process for Phase 3b
+
+Step 1 — Review swipe file before designing anything. Screenshot 2-3 moments from each reference product that feel right. Write one sentence per screenshot: "This works because ___."
+
+Step 2 — For every new screen, answer the five JTBD questions above before writing a Cursor prompt.
+
+Step 3 — Write the design brief with exact hex values, exact copy, exact interaction behavior, and what to remove as well as what to add. Vague briefs produce invented designs.
+
+Step 4 — Review state by state. Never evaluate the whole redesign at once. One screen, one verdict, one fix batch at a time.
