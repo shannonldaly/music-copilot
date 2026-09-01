@@ -89,12 +89,15 @@ class Orchestrator:
         return _detect_intent_local(prompt)
 
     @log_agent_call
-    def execute(self, prompt: str, use_api: bool = False) -> dict:
+    def execute(self, prompt: str, use_api: bool = False, session_context: dict = None) -> dict:
         """
         Full pipeline entry point. Returns a dict ready for GenerateResponse.
 
         Local mode (default): keyword intent → local lookup → local agents.
         API mode: Haiku intent → local lookup → LLM agents.
+        session_context ({progression, key, genres, bpm}, from the caller's session
+        history) makes follow-up intents answer over the current progression;
+        without it every prompt regenerates from scratch (pre-context behavior).
         """
         self.tracker.reset_for_request()
 
@@ -129,6 +132,7 @@ class Orchestrator:
                 intent_type, extracted, prompt,
                 has_api_key=self._has_api_key,
                 se_api_fallback_fn=self._se_api_fallback,
+                session_context=session_context,
             )
 
         response = build_response(

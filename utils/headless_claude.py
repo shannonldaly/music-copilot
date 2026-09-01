@@ -18,6 +18,8 @@ _INTENT_SYSTEM = """You are an intent classifier for a music production assistan
 
 Analyze the user's message and extract:
 1. intent_type: one of mood_vibe, artist_reference, theory_request,
+   melody_direction (guidance for a melody/topline over the current progression),
+   bass_line (guidance for a bass line under the current progression),
    production_question, drum_pattern, sound_engineering
 2. extracted: a dict with any of: moods (list), genres (list),
    key (e.g. "A minor"), tempo (int), artists (list)

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AlsoTryList from './AlsoTryList';
 import ChordCard from './ChordCard';
 import MelodyDirectionPanel from './MelodyDirectionPanel';
+import BassLinePanel from './BassLinePanel';
 import { FormattedTeaching } from '../utils/markdownLite';
 import { extractNumberedSteps } from '../utils/normalize';
 import { buildDrumRows } from '../utils/drums';
@@ -136,6 +137,8 @@ export default function MainWorkspace({
   const showDrumGrid = isDrums && drumRows.length > 0;
   const showAlsoTry = !isDrums && (alternatives?.length ?? 0) > 0;
   const showMelody = !isDrums && melodyDirection && typeof melodyDirection === 'object';
+  const bassLine = model?.bass_line;
+  const showBass = !isDrums && bassLine && typeof bassLine === 'object';
   const hasTheoryText = theoryExplanation && String(theoryExplanation).trim() && String(theoryExplanation).trim() !== '—';
   const hasVoiceText =
     !isDrums && voiceLeadingNotes && String(voiceLeadingNotes).trim() && String(voiceLeadingNotes).trim() !== '—';
@@ -352,6 +355,12 @@ export default function MainWorkspace({
             animateIntro={melodyIntroActive}
             onIntroComplete={onMelodyIntroComplete}
           />
+        </div>
+      ) : null}
+
+      {showBass ? (
+        <div data-testid="bass-line-panel">
+          <BassLinePanel data={bassLine} />
         </div>
       ) : null}
 

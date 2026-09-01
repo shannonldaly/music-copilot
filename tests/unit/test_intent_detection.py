@@ -127,3 +127,38 @@ def test_multiple_artists_extracted(o):
 def test_nin_alias_resolved(o):
     _, _, ext = o.detect_intent_local("something like nin")
     assert ext["artists"] == ["Nine Inch Nails"]
+
+
+# =============================================================================
+# Follow-up intents: melody direction and bass line (session-stage prefills)
+# =============================================================================
+
+def test_melody_direction_intent():
+    """The melodyDir stage prefill must classify as melody_direction, not theory/mood."""
+    o = Orchestrator()
+    intent, conf, ext = o.detect_intent_local("Suggest a melodic direction over this progression")
+    assert intent == "melody_direction"
+    assert conf > 0.5
+
+
+def test_bass_line_intent_keeps_extracted_genres():
+    """The bass stage prefill must classify as bass_line and keep the lo-fi genre."""
+    o = Orchestrator()
+    intent, conf, ext = o.detect_intent_local("Give me a lo-fi bass line to match this progression")
+    assert intent == "bass_line"
+    assert "lo_fi" in ext["genres"]
+
+
+def test_eq_bass_question_stays_sound_engineering():
+    """'bass' in an EQ question must not hijack the sound_engineering route."""
+    o = Orchestrator()
+    intent, conf, ext = o.detect_intent_local("How should I EQ and space these chords in Ableton?")
+    assert intent == "sound_engineering"
+
+
+def test_drum_intent_leaves_genres_empty_for_context():
+    """A genre-less drum prompt keeps genres empty so session context can fill them."""
+    o = Orchestrator()
+    intent, conf, ext = o.detect_intent_local("Give me a drum pattern that matches this vibe")
+    assert intent == "drum_pattern"
+    assert ext["genres"] == []

@@ -49,6 +49,8 @@ MOOD_KEYWORDS = ['melancholic', 'happy', 'sad', 'dark', 'chill', 'uplifting',
 GENRE_KEYWORDS = ['lo-fi', 'lofi', 'trap', 'jazz', 'rock', 'pop', 'edm',
                   'house', 'hip-hop', 'hip hop', 'r&b', 'classical', 'ambient']
 DRUM_KEYWORDS = ['beat', 'drum', 'rhythm', 'pattern', 'groove']
+MELODY_KEYWORDS = ['melody', 'melodic', 'topline', 'top line', 'lead line', 'vocal line']
+BASS_KEYWORDS = ['bass line', 'bassline', 'bass groove', 'walking bass', '808 line', 'sub line']
 SOUND_ENGINEERING_KEYWORDS = [
     'mix', 'eq', 'compress', 'reverb', 'automate', 'automation',
     'filter', 'frequency', 'sidechain', 'oscillator', 'synthesis',
@@ -62,6 +64,8 @@ CONFIDENCE_ARTIST_BLEND = 0.95
 CONFIDENCE_SOUND_ENGINEERING = 0.9
 CONFIDENCE_PRODUCTION = 0.8
 CONFIDENCE_DRUM = 0.85
+CONFIDENCE_MELODY = 0.85
+CONFIDENCE_BASS = 0.85
 CONFIDENCE_ARTIST_REF = 0.9
 CONFIDENCE_MOOD_VIBE = 0.9
 CONFIDENCE_FALLBACK = 0.5
@@ -90,6 +94,8 @@ class IntentType(Enum):
     ARTIST_REFERENCE = "artist_reference"
     ARTIST_BLEND = "artist_blend"
     THEORY_REQUEST = "theory_request"
+    MELODY_DIRECTION = "melody_direction"
+    BASS_LINE = "bass_line"
     PRODUCTION_QUESTION = "production_question"
     SOUND_ENGINEERING = "sound_engineering"
     FEEDBACK_LOOP = "feedback_loop"
@@ -202,8 +208,15 @@ def detect_intent_local(prompt: str) -> tuple:
     if any(kw in prompt_lower for kw in PRODUCTION_KEYWORDS):
         return ('production_question', CONFIDENCE_PRODUCTION, extracted)
 
+    if any(kw in prompt_lower for kw in MELODY_KEYWORDS):
+        return ('melody_direction', CONFIDENCE_MELODY, extracted)
+
+    if any(kw in prompt_lower for kw in BASS_KEYWORDS):
+        return ('bass_line', CONFIDENCE_BASS, extracted)
+
     if any(kw in prompt_lower for kw in DRUM_KEYWORDS):
-        extracted['genres'] = extracted['genres'] or ['trap']
+        # No trap default here — leave genres empty so session context can fill
+        # them in; _lookup_drums applies the trap fallback last.
         return ('drum_pattern', CONFIDENCE_DRUM, extracted)
 
     if len(artists) == 1:

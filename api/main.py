@@ -102,6 +102,9 @@ class GenerateResponse(BaseModel):
     alternatives: Optional[List[Dict]] = Field(None, description="3 alternative progressions: darker, more movement, unexpected. Each has: label, progression_name, chords (as {name, numeral} objects), character")
     melody_direction: Optional[Dict] = Field(None, description="Melody guidance: start_note, start_note_context, contour, rhythm_feel, avoid_on_strong_beats, avoid_context, suggested_range, artist_reference")
 
+    # Bass line guidance (follow-up over the current progression)
+    bass_line: Optional[Dict] = Field(None, description="Bass guidance: root_notes, pattern, rhythm_feel, register, tip, artist_reference")
+
     # Sound Engineering Agent output
     sound_engineering_response: Optional[Dict] = Field(None, description="Structured SE advice: summary, steps (list), ableton_path, principle, artist_reference")
 
@@ -217,6 +220,30 @@ async def health_check():
     }
 
 
+def _session_context(session) -> Optional[Dict]:
+    """
+    Build follow-up context from session history for the orchestrator.
+
+    Expects: a Session whose history entries store output {progressions, drum_patterns}.
+    Guarantees: returns {progression, key, genres, bpm} from the most recent history
+    entry that produced a progression, or None when the session has no progression yet.
+    If something is missing: malformed entries are skipped, never raised on.
+    Downstream: orchestrator.execute passes this to lookup_local so melody/bass/drum
+    follow-ups answer over the progression on screen instead of regenerating.
+    """
+    for entry in reversed(session.history or []):
+        progressions = (entry.output or {}).get("progressions") or []
+        if progressions and isinstance(progressions[0], dict) and progressions[0].get("chords"):
+            prog = progressions[0]
+            return {
+                "progression": prog,
+                "key": prog.get("key"),
+                "genres": prog.get("genres") or [],
+                "bpm": None,
+            }
+    return None
+
+
 @app.post("/api/generate", response_model=GenerateResponse)
 async def generate(request: GenerateRequest):
     """
@@ -228,7 +255,11 @@ async def generate(request: GenerateRequest):
     session = get_or_create_session(session_manager, request.session_id)
     orchestrator = Orchestrator()
 
-    result = orchestrator.execute(request.prompt, use_api=request.use_api)
+    result = orchestrator.execute(
+        request.prompt,
+        use_api=request.use_api,
+        session_context=_session_context(session),
+    )
     result["session_id"] = session.session_id
 
     # Clarification-only responses skip history

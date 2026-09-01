@@ -21,7 +21,9 @@ def test_curl_1_mood_vibe(client):
     assert d["teaching_note"] is not None
     assert d["alternatives"] is not None
     assert d["melody_direction"] is not None
-    assert d["key"] == "A minor"
+    # Vibe-seeded keys (2026-09-01): no explicit key in the prompt → a stable
+    # vibe-derived key, minor for melancholic. "A minor always" was the old bug.
+    assert d["key"].endswith("minor")
 
 
 def test_curl_2_drum_pattern(client):

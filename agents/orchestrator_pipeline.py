@@ -43,7 +43,8 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 def lookup_local(intent_type: str, extracted: dict, prompt: str,
-                 has_api_key: bool = False, se_api_fallback_fn=None) -> dict:
+                 has_api_key: bool = False, se_api_fallback_fn=None,
+                 session_context: dict = None) -> dict:
     """
     Execute local lookups based on intent type.
 
@@ -53,15 +54,47 @@ def lookup_local(intent_type: str, extracted: dict, prompt: str,
         prompt: The original user prompt (needed for SE agent)
         has_api_key: Whether an API key is available (for SE fallback)
         se_api_fallback_fn: Callable for SE API fallback (injected by Orchestrator)
+        session_context: Prior-session state {progression, key, genres, bpm} — lets
+            follow-up intents (melody_direction, bass_line, genre-less drum requests)
+            answer over the progression already on screen instead of regenerating.
     """
     logger.info(f"Routing: intent={intent_type}, moods={extracted.get('moods', [])}, "
                 f"genres={extracted.get('genres', [])}, key={extracted.get('key')}")
     local_data = {}
 
+    ctx = session_context or {}
+    ctx_progression = ctx.get('progression')
+
     if intent_type in ('mood_vibe', 'theory_request'):
         local_data = _lookup_progressions(extracted)
 
+    elif intent_type == 'melody_direction':
+        # Follow-up over the current progression: echo it back (so the UI keeps
+        # showing it) and let build_response regenerate melody guidance over it.
+        if ctx_progression:
+            local_data = {'progressions': [ctx_progression]}
+        else:
+            local_data = _lookup_progressions(extracted)
+
+    elif intent_type == 'bass_line':
+        from agents.theory_local import generate_bass_line_local
+        if ctx_progression:
+            local_data = {
+                'progressions': [ctx_progression],
+                'bass_line': generate_bass_line_local(ctx_progression, extracted),
+            }
+        else:
+            local_data = _lookup_progressions(extracted)
+            if local_data.get('progressions'):
+                local_data['bass_line'] = generate_bass_line_local(
+                    local_data['progressions'][0], extracted)
+
     elif intent_type == 'drum_pattern':
+        # A genre-less drum request inherits the session's genres so a lo-fi
+        # session gets lo-fi drums, not the trap fallback.
+        if not extracted.get('genres') and ctx.get('genres'):
+            extracted = dict(extracted)
+            extracted['genres'] = ctx['genres']
         local_data = _lookup_drums(extracted)
 
     elif intent_type == 'sound_engineering':
@@ -152,7 +185,7 @@ def _lookup_progressions(extracted: dict) -> dict:
 
 def _lookup_drums(extracted: dict) -> dict:
     """Look up drum patterns by genre."""
-    genres = extracted.get('genres', ['trap'])
+    genres = extracted.get('genres') or ['trap']
     patterns = []
     for genre in genres:
         patterns.extend(get_drum_patterns_by_genre(genre))
@@ -299,6 +332,10 @@ def build_response(intent_type: str, confidence: float, extracted: dict,
             response["alternatives"] = normalize_alternatives(theory_output["alternatives"])
         if theory_output.get("melody_direction"):
             response["melody_direction"] = theory_output["melody_direction"]
+
+    # --- Bass line guidance ---
+    if "bass_line" in local_data:
+        response["bass_line"] = local_data["bass_line"]
 
     # --- Drum patterns ---
     if "drum_patterns" in local_data:
