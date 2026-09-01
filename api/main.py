@@ -301,6 +301,51 @@ async def send_to_ableton(request: SendToAbletonRequest):
     return {"success": result["success"], "message": result["message"]}
 
 
+class SendArrangementRequest(BaseModel):
+    """Send the session's whole foundation (chords + bass + drums) to Ableton."""
+    session_id: str = Field(..., description="Session whose latest progression/drums to send")
+    bpm: int = Field(120, description="Tempo in BPM")
+
+
+@app.post("/api/send-arrangement-to-ableton")
+async def send_arrangement_to_ableton(request: SendArrangementRequest):
+    """Send chords + bass + drums from session history to Ableton via MCP.
+
+    Assembles the arrangement server-side: the session's most recent progression,
+    bass guidance derived from it, and the most recent drum pattern (skipped when
+    the session has none). Each track gets an instrument and an EQ Eight.
+    Returns {success, message, tracks}; graceful failure if Ableton is closed.
+    """
+    session = session_manager.load_session(request.session_id)
+    if session is None:
+        return {"success": False, "message": "Session not found", "tracks": []}
+
+    progression = None
+    drum_pattern = None
+    for entry in reversed(session.history or []):
+        output = entry.output or {}
+        if progression is None:
+            progs = output.get("progressions") or []
+            if progs and isinstance(progs[0], dict) and progs[0].get("chords"):
+                progression = progs[0]
+        if drum_pattern is None:
+            pats = output.get("drum_patterns") or []
+            if pats and isinstance(pats[0], dict) and pats[0].get("grid"):
+                drum_pattern = pats[0]
+        if progression is not None and drum_pattern is not None:
+            break
+
+    if progression is None:
+        return {"success": False, "message": "No progression in this session yet", "tracks": []}
+
+    from agents.theory_local import generate_bass_line_local
+    bass_line = generate_bass_line_local(progression)
+
+    client = AbletonMCPClient()
+    return client.send_arrangement_to_ableton(
+        progression, bass_line=bass_line, drum_pattern=drum_pattern, bpm=request.bpm)
+
+
 @app.post("/api/session", response_model=SessionResponse)
 async def create_session(body: SessionCreateBody = Body()):
     """Create a new session (optional session_mode for Phase 2 workflow)."""

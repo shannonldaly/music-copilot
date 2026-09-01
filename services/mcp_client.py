@@ -34,6 +34,14 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_HOST = "localhost"
 DEFAULT_PORT = 9877
+
+# Ableton Core Kit pitch layout (GM-flavored): pad row starting at C1
+DRUM_PITCH_MAP = {
+    "kick": 36, "snare": 38, "clap": 39, "rim": 37, "snap": 39,
+    "closed_hat": 42, "open_hat": 46, "shaker": 70, "perc": 43,
+    "tom_low": 41, "tom_mid": 45, "tom_high": 48,
+    "crash": 49, "ride": 51, "conga": 63,
+}
 SOCKET_TIMEOUT = 5.0
 BUFFER_SIZE = 65536
 
@@ -205,7 +213,225 @@ class AbletonMCPClient:
         return {
             "success": True,
             "message": f"Created {len(chords)} chords ({total_notes} notes) on track {track_index + 1}",
+            "track_index": track_index,
         }
+
+    def send_arrangement_to_ableton(self, progression: Dict, bass_line: Optional[Dict] = None,
+                                    drum_pattern: Optional[Dict] = None, bpm: int = 120) -> Dict:
+        """
+        Land the whole session foundation in Ableton: chords + bass (+ drums),
+        each on its own named track with an instrument and an EQ Eight starting point.
+
+        Expects: a full progression dict (chords with note_names); bass_line
+        ({root_notes, ...}, optional — roots derived from the chords when absent);
+        drum_pattern ({name, grid}, optional — the drums track is skipped without it).
+        Guarantees: returns {success, message, tracks} where tracks lists what
+        landed; tempo and Live's Key & Scale are set from the progression. Partial
+        failures degrade (a failed bass/drums track is reported, chords stand).
+        If something is missing: no chords → {success: False}; missing presets
+        load nothing but the notes still land.
+        Downstream: /api/send-arrangement-to-ableton returns this dict to the UI.
+        """
+        chords = progression.get("chords", [])
+        if not chords:
+            return {"success": False, "message": "No chords in progression data"}
+
+        # Chords track (also sets tempo + song key)
+        result = self.send_progression_to_ableton(progression, bpm=bpm)
+        if not result["success"]:
+            return result
+        tracks = ["chords (piano)"]
+        chord_track = result.get("track_index")
+        if chord_track is not None:
+            self._load_eq_eight(chord_track)
+
+        clip_length = len(chords) * 4
+        key_str = progression.get("key") or ""
+
+        # Bass track
+        bass_notes = self._build_bass_notes(chords, bass_line, progression)
+        if bass_notes:
+            bass_track = self._create_instrument_track(
+                "Rubato Bass", [("Bass", None), ("Pad", None)])
+            if bass_track is not None:
+                r = self._send_command("create_clip", {
+                    "track_index": bass_track, "clip_index": 0, "length": clip_length})
+                if r["success"]:
+                    self._send_command("add_notes_to_clip", {
+                        "track_index": bass_track, "clip_index": 0, "notes": bass_notes})
+                    name = "Bass roots" + (f" · {key_str}" if key_str else "")
+                    self._send_command("set_clip_name", {
+                        "track_index": bass_track, "clip_index": 0, "name": name})
+                    self._load_eq_eight(bass_track)
+                    tracks.append("bass")
+                else:
+                    logger.warning(f"MCP: bass clip failed ({r['message']})")
+
+        # Drums track
+        grid = (drum_pattern or {}).get("grid") or {}
+        drum_notes = self._build_drum_notes(grid, bars=len(chords))
+        if drum_notes:
+            drum_track = self._create_drum_track("Rubato Drums")
+            if drum_track is not None:
+                r = self._send_command("create_clip", {
+                    "track_index": drum_track, "clip_index": 0, "length": clip_length})
+                if r["success"]:
+                    self._send_command("add_notes_to_clip", {
+                        "track_index": drum_track, "clip_index": 0, "notes": drum_notes})
+                    self._send_command("set_clip_name", {
+                        "track_index": drum_track, "clip_index": 0,
+                        "name": drum_pattern.get("name", "Drums")})
+                    self._load_eq_eight(drum_track)
+                    tracks.append("drums")
+                else:
+                    logger.warning(f"MCP: drum clip failed ({r['message']})")
+
+        return {
+            "success": True,
+            "message": f"Landed {' + '.join(tracks)}" + (f" · {key_str}" if key_str else "") + f" · {bpm} BPM",
+            "tracks": tracks,
+        }
+
+    def _create_instrument_track(self, name: str, categories) -> Optional[int]:
+        """
+        Create a named MIDI track and load the first loadable preset from the
+        given (category, prefer-substring) list. Returns the track index, or
+        None when track creation fails (instrument failures degrade to a bare
+        track). The arrangement send depends on the returned index for clips.
+        """
+        r = self._send_command("create_midi_track", {})
+        if not r["success"]:
+            logger.warning(f"MCP: create track '{name}' failed ({r['message']})")
+            return None
+        track_index = r["data"].get("index", 0)
+        self._send_command("set_track_name", {"track_index": track_index, "name": name})
+        for category, prefer in categories:
+            uri, preset = self._resolve_from_category(f"sounds/{category}", prefer)
+            if uri:
+                lr = self._send_command("load_browser_item", {
+                    "item_uri": uri, "track_index": track_index})
+                if lr["success"]:
+                    logger.info(f"MCP: {name} instrument: {preset}")
+                    break
+        return track_index
+
+    def _create_drum_track(self, name: str) -> Optional[int]:
+        """
+        Create a named MIDI track with a drum kit (Core Kit preferred) from the
+        browser's drums category. Same contract as _create_instrument_track.
+        """
+        r = self._send_command("create_midi_track", {})
+        if not r["success"]:
+            logger.warning(f"MCP: create track '{name}' failed ({r['message']})")
+            return None
+        track_index = r["data"].get("index", 0)
+        self._send_command("set_track_name", {"track_index": track_index, "name": name})
+        uri, preset = self._resolve_from_category("drums", "core kit")
+        if uri:
+            lr = self._send_command("load_browser_item", {
+                "item_uri": uri, "track_index": track_index})
+            if lr["success"]:
+                logger.info(f"MCP: {name} kit: {preset}")
+        return track_index
+
+    def _load_eq_eight(self, track_index: int) -> None:
+        """Load an EQ Eight starting point onto a track. Failures only warn —
+        the notes matter more than the effect chain."""
+        uri, _ = self._resolve_from_category("audio_effects", "eq eight")
+        if not uri:
+            logger.warning("MCP: EQ Eight not found in browser")
+            return
+        r = self._send_command("load_browser_item", {
+            "item_uri": uri, "track_index": track_index})
+        if not r["success"]:
+            logger.warning(f"MCP: EQ Eight load failed ({r['message']})")
+
+    def _build_bass_notes(self, chords, bass_line, progression) -> list:
+        """
+        Turn bass guidance into MIDI notes, one bar per chord.
+
+        Expects: chords with root/name; bass_line.root_notes when present
+        (falls back to chord roots at octave 2). Guarantees: a list of note
+        dicts in add_notes_to_clip shape; empty when no root resolves.
+        Rhythm follows the progression's genres: held notes for lo-fi/trap,
+        offbeat eighths for house/EDM, roots on 1 and 3 otherwise.
+        """
+        roots = list((bass_line or {}).get("root_notes") or [])
+        if not roots:
+            for chord in chords:
+                root = chord.get("root") or (chord.get("name") or "")[:1]
+                if root:
+                    roots.append(f"{root}2")
+        if not roots:
+            return []
+
+        genres = {str(g).lower().replace("-", "_").replace(" ", "_")
+                  for g in (progression.get("genres") or [])}
+        if genres & {"house", "edm", "dance", "techno", "disco"}:
+            hits = [(0.5 + i, 0.45) for i in range(4)]  # offbeat eighths per bar
+        elif genres & {"lo_fi", "lofi", "chillhop", "jazz", "trap", "hip_hop"}:
+            hits = [(0.0, 4.0)]  # let the root ring the whole bar
+        else:
+            hits = [(0.0, 2.0), (2.0, 2.0)]  # roots on 1 and 3
+
+        notes = []
+        for bar, root in enumerate(roots[:len(chords)]):
+            pitch = _note_name_to_midi(root)
+            if pitch is None:
+                continue
+            for offset, duration in hits:
+                notes.append({"pitch": pitch, "start_time": bar * 4.0 + offset,
+                              "duration": duration, "velocity": 100})
+        return notes
+
+    def _build_drum_notes(self, grid: Dict, bars: int = 4) -> list:
+        """
+        Turn a 16-step drum grid into MIDI notes, looped across the clip.
+
+        Expects: grid {sound_name: [step indices 0-15]} from DrumPattern.to_grid().
+        Guarantees: note dicts pitched for Ableton Core Kits (kick C1=36 etc.,
+        unknown sounds fall back to generic percussion); empty for an empty grid.
+        Each step is a 16th (0.25 beats); the one-bar pattern repeats every bar.
+        """
+        if not grid:
+            return []
+        notes = []
+        for sound, steps in grid.items():
+            pitch = DRUM_PITCH_MAP.get(sound, 37)
+            velocity = 85 if "hat" in sound or sound in ("shaker", "ride") else 100
+            for bar in range(max(1, bars)):
+                for step in steps or []:
+                    notes.append({"pitch": pitch,
+                                  "start_time": bar * 4.0 + step * 0.25,
+                                  "duration": 0.2, "velocity": velocity})
+        return notes
+
+    def _resolve_from_category(self, path: str, prefer: Optional[str] = None):
+        """
+        Resolve a loadable browser preset by category path, preferring names
+        containing `prefer`. Returns (uri, name) or (None, None). Never raises —
+        callers degrade to no-instrument. Results are cached per client instance.
+        """
+        cache = getattr(self, "_browser_cache", None)
+        if cache is None:
+            cache = self._browser_cache = {}
+        cache_key = (path, prefer)
+        if cache_key in cache:
+            return cache[cache_key]
+        result = self._send_command("get_browser_items_at_path", {"path": path})
+        resolved = (None, None)
+        if result["success"]:
+            items = [i for i in (result.get("data") or {}).get("items", [])
+                     if i.get("is_loadable") and i.get("uri")]
+            if items:
+                resolved = (items[0]["uri"], items[0].get("name", path))
+                if prefer:
+                    for item in items:
+                        if prefer in (item.get("name") or "").lower():
+                            resolved = (item["uri"], item.get("name", path))
+                            break
+        cache[cache_key] = resolved
+        return resolved
 
     def _resolve_instrument(self):
         """
@@ -219,18 +445,9 @@ class AbletonMCPClient:
         The send flow depends on this so the imported chords are audible.
         """
         for category, prefer in (("Piano & Keys", "piano"), ("Pad", None)):
-            result = self._send_command("get_browser_items_at_path", {"path": f"sounds/{category}"})
-            if not result["success"]:
-                continue
-            items = [i for i in (result.get("data") or {}).get("items", [])
-                     if i.get("is_loadable") and i.get("uri")]
-            if not items:
-                continue
-            if prefer:
-                for item in items:
-                    if prefer in (item.get("name") or "").lower():
-                        return item["uri"], item.get("name", category)
-            return items[0]["uri"], items[0].get("name", category)
+            uri, name = self._resolve_from_category(f"sounds/{category}", prefer)
+            if uri:
+                return uri, name
         return None, None
 
     # =========================================================================

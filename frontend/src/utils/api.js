@@ -137,3 +137,12 @@ export async function sendProgressionToAbleton({ progression, bpm }) {
   const { data } = await api.post('/api/send-to-ableton', { progression, bpm });
   return data;
 }
+
+/** POST /api/send-arrangement-to-ableton — chords + bass + drums from session history. */
+export async function sendArrangementToAbleton({ sessionId, bpm }) {
+  const { data } = await api.post('/api/send-arrangement-to-ableton', {
+    session_id: sessionId,
+    bpm,
+  });
+  return data;
+}

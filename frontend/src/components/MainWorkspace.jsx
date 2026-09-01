@@ -6,7 +6,7 @@ import BassLinePanel from './BassLinePanel';
 import { FormattedTeaching } from '../utils/markdownLite';
 import { extractNumberedSteps } from '../utils/normalize';
 import { buildDrumRows } from '../utils/drums';
-import { sendProgressionToAbleton } from '../utils/api';
+import { sendProgressionToAbleton, sendArrangementToAbleton } from '../utils/api';
 import styles from './MainWorkspace.module.css';
 
 const EXAMPLE_PROMPTS = ['melancholic lo-fi', 'something like Massive Attack', 'uplifting in D major'];
@@ -156,9 +156,12 @@ export default function MainWorkspace({
     setAbletonSendUi('sending');
     const bpmRaw = Number(model?.bpm);
     const bpm = Number.isFinite(bpmRaw) && bpmRaw > 0 ? Math.round(bpmRaw) : 120;
-    const progression = buildProgressionPayload(list, model);
     try {
-      const data = await sendProgressionToAbleton({ progression, bpm });
+      // Arrangement send (chords + bass + drums from session history) when we
+      // have a session; chords-only payload as the fallback for sessionless use.
+      const data = sessionId
+        ? await sendArrangementToAbleton({ sessionId, bpm })
+        : await sendProgressionToAbleton({ progression: buildProgressionPayload(list, model), bpm });
       if (!data?.success) {
         const msg = data?.message || 'Could not send to Ableton';
         setAbletonSendErr(msg);
@@ -182,7 +185,7 @@ export default function MainWorkspace({
       abletonTimersRef.current.push(window.setTimeout(() => setAbletonSendErr(null), 3000));
       setAbletonSendUi('idle');
     }
-  }, [list, model]);
+  }, [list, model, sessionId]);
 
   if (!hasContentGeneration) {
     return (
