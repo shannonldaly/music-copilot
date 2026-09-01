@@ -2,6 +2,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 from _Framework.ControlSurface import ControlSurface
+import Live
 import socket
 import json
 import threading
@@ -225,10 +226,13 @@ class AbletonMCP(ControlSurface):
             elif command_type == "get_track_info":
                 track_index = params.get("track_index", 0)
                 response["result"] = self._get_track_info(track_index)
+            elif command_type == "get_clip_notes":
+                response["result"] = self._get_clip_notes(
+                    params.get("track_index", 0), params.get("clip_index", 0))
             # Commands that modify Live's state should be scheduled on the main thread
             elif command_type in ["create_midi_track", "set_track_name", 
                                  "create_clip", "add_notes_to_clip", "set_clip_name", 
-                                 "set_tempo", "set_song_key", "fire_clip", "stop_clip",
+                                 "set_tempo", "fire_clip", "stop_clip",
                                  "start_playback", "stop_playback", "load_browser_item"]:
                 # Use a thread-safe approach with a response queue
                 response_queue = queue.Queue()
@@ -262,10 +266,6 @@ class AbletonMCP(ControlSurface):
                         elif command_type == "set_tempo":
                             tempo = params.get("tempo", 120.0)
                             result = self._set_tempo(tempo)
-                        elif command_type == "set_song_key":
-                            root_note = params.get("root_note", 0)
-                            scale_name = params.get("scale_name", "Major")
-                            result = self._set_song_key(root_note, scale_name)
                         elif command_type == "fire_clip":
                             track_index = params.get("track_index", 0)
                             clip_index = params.get("clip_index", 0)
@@ -503,20 +503,19 @@ class AbletonMCP(ControlSurface):
             
             clip = clip_slot.clip
             
-            # Convert note data to Live's format
-            live_notes = []
+            # Modern note API (Live 11+): the legacy clip.set_notes tuple call
+            # silently no-ops without a prior selection, so use add_new_notes.
+            specs = []
             for note in notes:
-                pitch = note.get("pitch", 60)
-                start_time = note.get("start_time", 0.0)
-                duration = note.get("duration", 0.25)
-                velocity = note.get("velocity", 100)
-                mute = note.get("mute", False)
-                
-                live_notes.append((pitch, start_time, duration, velocity, mute))
-            
-            # Add the notes
-            clip.set_notes(tuple(live_notes))
-            
+                specs.append(Live.Clip.MidiNoteSpecification(
+                    pitch=int(note.get("pitch", 60)),
+                    start_time=float(note.get("start_time", 0.0)),
+                    duration=float(note.get("duration", 0.25)),
+                    velocity=float(note.get("velocity", 100)),
+                    mute=bool(note.get("mute", False)),
+                ))
+            clip.add_new_notes(tuple(specs))
+
             result = {
                 "note_count": len(notes)
             }
@@ -525,6 +524,23 @@ class AbletonMCP(ControlSurface):
             self.log_message("Error adding notes to clip: " + str(e))
             raise
     
+    def _get_clip_notes(self, track_index, clip_index):
+        """Read the MIDI notes in a clip (verification surface for note writes)."""
+        try:
+            track = self._song.tracks[track_index]
+            clip_slot = track.clip_slots[clip_index]
+            if not clip_slot.has_clip:
+                return {"notes": [], "has_clip": False}
+            clip = clip_slot.clip
+            got = clip.get_notes_extended(0, 128, 0.0, float(clip.length))
+            notes = [{"pitch": n.pitch, "start_time": n.start_time,
+                      "duration": n.duration, "velocity": n.velocity}
+                     for n in got]
+            return {"notes": notes, "has_clip": True, "count": len(notes)}
+        except Exception as e:
+            self.log_message("Error reading clip notes: {0}".format(str(e)))
+            raise
+
     def _set_clip_name(self, track_index, clip_index, name):
         """Set the name of a clip"""
         try:
@@ -565,16 +581,6 @@ class AbletonMCP(ControlSurface):
             self.log_message("Error setting tempo: " + str(e))
             raise
     
-    def _set_song_key(self, root_note, scale_name):
-        """Set the song's Key & Scale (Live 12): root_note 0-11 (C=0), scale_name e.g. Major/Minor"""
-        try:
-            self._song.root_note = int(root_note)
-            self._song.scale_name = str(scale_name)
-            return {"root_note": self._song.root_note, "scale_name": self._song.scale_name}
-        except Exception as e:
-            self.log_message("Error setting song key: {0}".format(str(e)))
-            raise
-
     def _fire_clip(self, track_index, clip_index):
         """Fire a clip"""
         try:
