@@ -88,6 +88,28 @@ def lookup_local(intent_type: str, extracted: dict, prompt: str,
     return local_data
 
 
+def _vibe_key_root(moods: list, genres: list, key_mode: str) -> str:
+    """
+    Pick an inferred key root from a producer-friendly pool, seeded by the
+    vibe, so different prompts stop collapsing onto one default key.
+    Expects the mood/genre lists (either may be empty) and the resolved mode.
+    Guarantees a deterministic root: the same vibe always lands on the same
+    key, run to run. Empty vibe: the pool's first entry (the old default).
+    Next consumer: the progression lookup and the theory agent's transposition.
+    """
+    import hashlib
+    pools = {
+        'minor': ['A', 'E', 'D', 'B', 'F#', 'C', 'G'],
+        'major': ['C', 'G', 'D', 'A', 'F', 'E', 'Bb'],
+    }
+    pool = pools.get(key_mode, pools['minor'])
+    vibe = ','.join(sorted(set(moods) | set(genres)))
+    if not vibe:
+        return pool[0]
+    digest = hashlib.md5(vibe.encode('utf-8')).hexdigest()
+    return pool[int(digest, 16) % len(pool)]
+
+
 def _lookup_progressions(extracted: dict) -> dict:
     """Look up chord progressions based on mood, genre, and key."""
     moods = extracted.get('moods', [])
@@ -100,16 +122,13 @@ def _lookup_progressions(extracted: dict) -> dict:
         key_mode = key_parts[1] if len(key_parts) > 1 else 'minor'
     else:
         genre_set = set(genres)
-        if genre_set & MINOR_GENRES:
-            key_root, key_mode = DEFAULT_MINOR_KEY
-        elif genre_set & MAJOR_GENRES:
-            key_root, key_mode = DEFAULT_MAJOR_KEY
-        elif set(moods) & MINOR_MOODS:
-            key_root, key_mode = DEFAULT_MINOR_KEY
-        elif set(moods) & MAJOR_MOODS:
-            key_root, key_mode = DEFAULT_MAJOR_KEY
+        if genre_set & MINOR_GENRES or set(moods) & MINOR_MOODS:
+            key_mode = 'minor'
+        elif genre_set & MAJOR_GENRES or set(moods) & MAJOR_MOODS:
+            key_mode = 'major'
         else:
-            key_root, key_mode = FALLBACK_KEY
+            key_mode = FALLBACK_KEY[1]
+        key_root = _vibe_key_root(moods, genres, key_mode)
 
     logger.info(f"Key resolved: {key_root} {key_mode} "
                 f"(source={'user' if extracted.get('key') else 'inferred'})")
