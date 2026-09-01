@@ -50,7 +50,8 @@ GENRE_KEYWORDS = ['lo-fi', 'lofi', 'trap', 'jazz', 'rock', 'pop', 'edm',
                   'house', 'hip-hop', 'hip hop', 'r&b', 'classical', 'ambient']
 DRUM_KEYWORDS = ['beat', 'drum', 'rhythm', 'pattern', 'groove']
 MELODY_KEYWORDS = ['melody', 'melodic', 'topline', 'top line', 'lead line', 'vocal line']
-BASS_KEYWORDS = ['bass line', 'bassline', 'bass groove', 'walking bass', '808 line', 'sub line']
+BASS_KEYWORDS = ['bass line', 'bassline', 'bass groove', 'walking bass', '808 line', 'sub line',
+                 'low end', 'low-end', 'sub bass', '808']
 SOUND_ENGINEERING_KEYWORDS = [
     'mix', 'eq', 'compress', 'reverb', 'automate', 'automation',
     'filter', 'frequency', 'sidechain', 'oscillator', 'synthesis',
