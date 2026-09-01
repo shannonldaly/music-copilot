@@ -96,7 +96,7 @@ Interactive docs at [http://localhost:8000/docs](http://localhost:8000/docs) whe
 /docs                Grounding documents (music theory, Ableton guide, artist DNA, etc.)
 /frontend            React app (Vite, CSS Modules, Tone.js)
 /memory              Session persistence (JSON files)
-/services            External integrations (empty — MCP client goes here in Phase 4)
+/services            External integrations (the Ableton MCP client lives here)
 /tests               pytest suite: contract/, integration/, unit/, regression/
 /theory              Local music theory lookups (scales, chords, progressions, drums)
 /utils               Token tracking, model config, structured logging
@@ -119,9 +119,11 @@ CLAUDE.md            Project spec, agent contracts, build sequencing
 | 3a — Architecture & Agent Quality | Complete |
 | 3b — UX Design Sprint | In Progress |
 | 3c — Operational Readiness | In Progress |
-| 4 — Ableton MCP Integration | Planned |
+| 4 — Ableton MCP Integration | Complete — Send to Ableton works end to end; chords land in a live set with the pad instrument auto-loaded |
 | 5 — Operational Readiness Sprint 2 | Planned |
 | 6 — Demo | Planned |
+
+*Currently paused while I build [Solto](https://shannonldaly.github.io/). When it resumes: operational readiness, then the demo.*
 
 ---
 
