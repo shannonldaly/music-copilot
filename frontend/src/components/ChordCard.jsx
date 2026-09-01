@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import styles from './ChordCard.module.css';
+import { playChord, ensureAudioContext } from '../utils/playback';
 
 const PC_MAP = {
   C: 0,
@@ -130,8 +131,20 @@ export default function ChordCard({ name, numeral, notes, keepFlash }) {
   const quality = chordQualityLabel(name);
   const pcs = useMemo(() => chordPitchClasses(notes), [notes]);
 
+  const handleHoverPreview = () => {
+    playChord(notes);
+  };
+  const handleClickPreview = async () => {
+    await ensureAudioContext();
+    playChord(notes);
+  };
+
   return (
-    <div className={`${styles.card} ${keepFlash ? styles.keepFlash : ''}`}>
+    <div
+      className={`${styles.card} ${keepFlash ? styles.keepFlash : ''}`}
+      onMouseEnter={handleHoverPreview}
+      onClick={handleClickPreview}
+    >
       <div className={styles.cardInner}>
         <div className={styles.chordName}>{name || '—'}</div>
         <div className={styles.numeral}>{numeral || '—'}</div>

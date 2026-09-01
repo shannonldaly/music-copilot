@@ -69,6 +69,33 @@ export async function ensureAudioContext() {
   }
 }
 
+// Hover events can't unlock the browser's audio context (Chrome only counts
+// real gestures), so the first click or keypress anywhere arms audio for
+// every later hover preview.
+if (typeof document !== 'undefined') {
+  const unlock = () => {
+    Tone.start();
+  };
+  document.addEventListener('pointerdown', unlock, { once: true });
+  document.addEventListener('keydown', unlock, { once: true });
+}
+
+/**
+ * One chord, once — the card's hover/click preview.
+ * Expects an array of note-name strings (e.g. "A3"); empty or missing notes
+ * are a silent no-op (a hover must never throw). If audio isn't unlocked yet
+ * it stays silent — the card's click handler unlocks and retries.
+ * Next consumer: ChordCard.
+ */
+export async function playChord(noteNames, durationSec = 1.2) {
+  const names = (noteNames || []).map((n) => String(n).trim()).filter(Boolean);
+  if (!names.length) return;
+  if (Tone.context.state !== 'running') return;
+  const synth = getSynth();
+  const freq = names.map((n) => Tone.Frequency(n).toFrequency());
+  synth.triggerAttackRelease(freq, durationSec);
+}
+
 /**
  * @param {number} bpm
  * @param {Array<{ notes?: string[], note_names?: string[] }>} chords
