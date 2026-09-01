@@ -116,6 +116,15 @@ class Orchestrator:
             local_data = orch_result.local_data or {}
         else:
             intent_type, confidence, extracted = self.detect_intent_local(prompt)
+            if confidence <= 0.5 and not (extracted.get("moods") or extracted.get("genres") or extracted.get("key") or extracted.get("artists")):
+                # Keyword lists drew a blank — one headless-Claude call (billed to
+                # the subscription, not the API) reads the free-form prompt so it
+                # doesn't silently land on the C-major fallback.
+                from utils.headless_claude import headless_available, classify_intent_headless
+                if headless_available():
+                    enriched = classify_intent_headless(prompt)
+                    if enriched:
+                        intent_type, confidence, extracted = enriched
             local_data = lookup_local(
                 intent_type, extracted, prompt,
                 has_api_key=self._has_api_key,
