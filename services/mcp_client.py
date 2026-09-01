@@ -97,15 +97,36 @@ class AbletonMCPClient:
         track_index = result["data"].get("index", 0)
         logger.info(f"MCP: created track at index {track_index}")
 
-        # Step 3: Load instrument (pad sound for chord playback)
-        result = self._send_command("load_browser_item", {
-            "item_uri": "query:Sounds#Pad",
+        # create_midi_track ignores the name param in the remote script — name explicitly
+        result = self._send_command("set_track_name", {
             "track_index": track_index,
+            "name": "Rubato Chords",
         })
         if not result["success"]:
-            logger.warning(f"MCP: instrument load failed ({result['message']}), continuing without instrument")
+            logger.warning(f"MCP: track rename failed ({result['message']}), continuing")
+
+        # Step 3: Load instrument (pad sound for chord playback).
+        # "query:Sounds#Pad" is the category folder — load_item on a folder silently
+        # no-ops, so resolve an actual loadable preset inside it first.
+        pad_uri = None
+        result = self._send_command("get_browser_items_at_path", {"path": "sounds/Pad"})
+        if result["success"]:
+            for item in (result.get("data") or {}).get("items", []):
+                if item.get("is_loadable") and item.get("uri"):
+                    pad_uri = item["uri"]
+                    pad_name = item.get("name", "Pad")
+                    break
+        if pad_uri:
+            result = self._send_command("load_browser_item", {
+                "item_uri": pad_uri,
+                "track_index": track_index,
+            })
+            if not result["success"]:
+                logger.warning(f"MCP: instrument load failed ({result['message']}), continuing without instrument")
+            else:
+                logger.info(f"MCP: loaded instrument: {pad_name}")
         else:
-            logger.info(f"MCP: loaded instrument: {result['data'].get('item_name', 'Pad')}")
+            logger.warning("MCP: no loadable pad preset found, continuing without instrument")
 
         # Step 4: Create clip
         clip_length = len(chords) * 4  # 4 beats per chord (1 bar each)
@@ -117,6 +138,15 @@ class AbletonMCPClient:
         if not result["success"]:
             return {"success": False, "message": f"Failed to create clip: {result['message']}"}
         logger.info(f"MCP: created clip with length {clip_length} beats")
+
+        clip_name = progression_data.get("name") or "Rubato"
+        result = self._send_command("set_clip_name", {
+            "track_index": track_index,
+            "clip_index": 0,
+            "name": clip_name,
+        })
+        if not result["success"]:
+            logger.warning(f"MCP: clip rename failed ({result['message']}), continuing")
 
         # Step 4: Add notes — one call per chord, all notes batched
         total_notes = 0
