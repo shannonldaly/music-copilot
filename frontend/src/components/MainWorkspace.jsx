@@ -98,6 +98,7 @@ export default function MainWorkspace({
   historyStageId,
   historyStageLabel,
   onExitHistory,
+  onSendSuccess,
 }) {
   const [abletonOpen, setAbletonOpen] = useState(false);
   const [abletonSendUi, setAbletonSendUi] = useState('idle');
@@ -180,12 +181,13 @@ export default function MainWorkspace({
           );
         }, 350)
       );
+      onSendSuccess?.();
     } catch (e) {
       setAbletonSendErr(parseSendToAbletonError(e));
       abletonTimersRef.current.push(window.setTimeout(() => setAbletonSendErr(null), 3000));
       setAbletonSendUi('idle');
     }
-  }, [list, model, sessionId]);
+  }, [list, model, sessionId, onSendSuccess]);
 
   if (!hasContentGeneration) {
     return (

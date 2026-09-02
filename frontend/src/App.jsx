@@ -477,7 +477,7 @@ export default function App() {
       if (
         awaiting === 'progression' &&
         model?.melody_direction &&
-        nextStagesSnapshot.melodyDir?.status === 'pending'
+        ['pending', 'active'].includes(nextStagesSnapshot.melodyDir?.status)
       ) {
         nextStagesSnapshot = {
           ...nextStagesSnapshot,
@@ -502,7 +502,9 @@ export default function App() {
       return;
     }
 
-    const nextId = nextSuggestedStage(nextStagesSnapshot, sessionMode);
+    const nextId =
+      firstAwaitingConfirmStage(nextStagesSnapshot, sessionMode) ||
+      nextSuggestedStage(nextStagesSnapshot, sessionMode);
     const { text } = getSuggestionForStage(sessionMode, nextId);
     const guidance = personalizeSuggestion(text, model);
     const headline = getPostKeepWorkOnHeadline(nextId);
@@ -517,6 +519,18 @@ export default function App() {
       setWorkspaceFadeKeep(false);
       setJustConfirmedStageId(null);
     }, 600);
+  };
+
+  // Sending to Ableton is a stronger commitment than Keep: confirm the
+  // progression and steer to the next stage instead of leaving the flow parked.
+  const handleSendSuccess = () => {
+    if (
+      stages &&
+      sessionMode &&
+      firstAwaitingConfirmStage(stages, sessionMode) === 'progression'
+    ) {
+      handleKeep();
+    }
   };
 
   const handleRegen = async () => {
@@ -757,6 +771,7 @@ export default function App() {
                       historyStageId ? STAGE_LABELS[historyStageId] || historyStageId : ''
                     }
                     onExitHistory={() => setHistoryStageId(null)}
+                    onSendSuccess={handleSendSuccess}
                   />
                 </div>
 
