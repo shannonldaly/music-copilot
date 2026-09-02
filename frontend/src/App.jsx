@@ -318,11 +318,21 @@ export default function App() {
         sound_engineering: 'sound-engineering-panel',
       }[data.intent];
       if (followUpPanel) {
-        setTimeout(() => {
+        const scrollToPanel = () => {
           document
             .querySelector(`[data-testid="${followUpPanel}"]`)
             ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 350);
+        };
+        setTimeout(scrollToPanel, 400);
+        // The panels animate in, and the layout shifts cancel a smooth scroll
+        // mid-flight; correct with an instant jump once the entrance
+        // animations have settled.
+        setTimeout(() => {
+          const el = document.querySelector(`[data-testid="${followUpPanel}"]`);
+          if (el && Math.abs(el.getBoundingClientRect().top - 60) > 160) {
+            el.scrollIntoView({ behavior: 'auto', block: 'start' });
+          }
+        }, 1800);
       }
     } catch (e) {
       setError(e.message || 'Request failed');

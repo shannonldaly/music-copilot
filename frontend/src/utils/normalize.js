@@ -22,6 +22,7 @@ export function normalizeGenerateResponse(data) {
   const extraFields = {
     sound_engineering_response: data.sound_engineering_response ?? null,
     artist_blend: data.artist_blend ?? null,
+    bass_line: data.bass_line ?? null,
     key_was_specified: data.key_was_specified === true,
   };
 
