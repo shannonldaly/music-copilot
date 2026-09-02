@@ -8,12 +8,19 @@ The money shot is the full import: **prompt → Keep through stages → one clic
 
 Suggested take structure (~30–45s final, can be two takes stitched):
 
+0. **Audio:** confirm QuickTime's mic is BlackHole 2ch and Ableton outputs to the Multi-Output Device (see capture pipeline below) — the arrangement should be HEARD playing in takes 3-4.
 1. **In Rubato (browser):** the finished session visible — chords + melody panel + bass panel + drums locked. Cursor hits **Send to Ableton**. (~5s)
 2. **In Ableton Session View:** the three tracks appear at the right — "Rubato Chords" (piano, clip named with the actual chords e.g. "Am Dm Am Dm · A minor"), "Rubato Bass", "Rubato Drums" — each with EQ Eight. Linger on the chord-named clip. (~10s)
 3. **Tab to Arrangement View:** same clips sitting on the timeline at bar 1. Key & Scale display shows the progression key. Press play; playhead moves. (~10s)
 4. Optional close: open the piano roll on Rubato Chords — the actual chord notes. (~5s)
 
-Site videos are muted (`-an` in the ruled encode), so no audio capture needed — visual only. QuickTime screen recording of the Ableton window is fine.
+**This clip keeps its audio** (Shannon's ruling: hearing the arrangement land is the payoff — the other site clips stay muted). The capture pipeline is ALREADY SET UP AND PROVEN (2026-09-02, tested end to end):
+
+- **BlackHole 2ch** is installed (brew) and a **Multi-Output Device** exists in Audio MIDI Setup: MacBook Pro Speakers (primary/clock) + BlackHole 2ch (drift correction on).
+- **Ableton's Audio Output Device = Multi-Output Device** — she hears the set while BlackHole gets a copy. Live only scans devices at launch, so if the device is missing from Live's list, restart Live.
+- **QuickTime screen recording with Microphone = BlackHole 2ch** captures clean direct Ableton audio (no room noise).
+- While on the Multi-Output Device the Mac volume keys are dead — set level with Ableton's master fader (healthy level = recording level).
+- After the shoot, switch Ableton's output back to MacBook Pro Speakers.
 
 ## Preflight checklist (walk Shannon through ONE STEP AT A TIME, numbered)
 
@@ -38,7 +45,7 @@ Site videos are muted (`-an` in the ruled encode), so no audio capture needed �
 ## Camera + cut + encode (the ruled settings)
 
 - Shannon records with QuickTime (screen recording, Ableton window; browser take separately if doing the two-window arc). Files usually land on ~/Desktop.
-- Cut/retime with ffmpeg; encode: `-c:v libx264 -crf 24 -preset slow -an -movflags +faststart`, scale ~1600w, fps 30, **≤5MB**.
+- Cut/retime with ffmpeg; encode THIS clip WITH audio: `-c:v libx264 -crf 24 -preset slow -c:a aac -b:a 128k -movflags +faststart`, scale ~1600w, fps 30, **≤5MB** (the `-an` in the ruled settings applies to the muted clips only). The page video uses `controls preload="none"`, so sound only plays when the viewer clicks — no autoplay-with-audio problem.
 - Poster frame: ffmpeg frame → `cwebp -q 80` (sips can't write webp).
 
 ## Landing it on the site
