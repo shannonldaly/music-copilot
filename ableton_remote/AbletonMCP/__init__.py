@@ -232,7 +232,7 @@ class AbletonMCP(ControlSurface):
             # Commands that modify Live's state should be scheduled on the main thread
             elif command_type in ["create_midi_track", "set_track_name", 
                                  "create_clip", "add_notes_to_clip", "set_clip_name", 
-                                 "set_tempo", "set_song_key", "fire_clip", "stop_clip",
+                                 "set_tempo", "set_song_key", "clip_to_arrangement", "fire_clip", "stop_clip",
                                  "start_playback", "stop_playback", "load_browser_item"]:
                 # Use a thread-safe approach with a response queue
                 response_queue = queue.Queue()
@@ -270,6 +270,11 @@ class AbletonMCP(ControlSurface):
                             root_note = params.get("root_note", 0)
                             scale_name = params.get("scale_name", "Major")
                             result = self._set_song_key(root_note, scale_name)
+                        elif command_type == "clip_to_arrangement":
+                            result = self._clip_to_arrangement(
+                                params.get("track_index", 0),
+                                params.get("clip_index", 0),
+                                params.get("time", 0.0))
                         elif command_type == "fire_clip":
                             track_index = params.get("track_index", 0)
                             clip_index = params.get("clip_index", 0)
@@ -585,6 +590,20 @@ class AbletonMCP(ControlSurface):
             self.log_message("Error setting tempo: " + str(e))
             raise
     
+    def _clip_to_arrangement(self, track_index, clip_index, time):
+        """Copy a session clip onto the same track's arrangement timeline (Live 11+)."""
+        try:
+            track = self._song.tracks[track_index]
+            clip_slot = track.clip_slots[clip_index]
+            if not clip_slot.has_clip:
+                raise Exception("No clip in slot")
+            track.duplicate_clip_to_arrangement(clip_slot.clip, float(time))
+            self._song.back_to_arranger = 0
+            return {"placed_at": float(time), "track": track.name}
+        except Exception as e:
+            self.log_message("Error copying clip to arrangement: {0}".format(str(e)))
+            raise
+
     def _set_song_key(self, root_note, scale_name):
         """Set the song's Key & Scale (Live 12): root_note 0-11 (C=0), scale_name e.g. Major/Minor"""
         try:

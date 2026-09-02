@@ -210,6 +210,8 @@ class AbletonMCPClient:
         if total_notes == 0:
             return {"success": False, "message": "No notes were added to Ableton"}
 
+        self._place_in_arrangement(track_index, 0)
+
         return {
             "success": True,
             "message": f"Created {len(chords)} chords ({total_notes} notes) on track {track_index + 1}",
@@ -263,6 +265,7 @@ class AbletonMCPClient:
                     self._send_command("set_clip_name", {
                         "track_index": bass_track, "clip_index": 0, "name": name})
                     self._load_eq_eight(bass_track)
+                    self._place_in_arrangement(bass_track, 0)
                     tracks.append("bass")
                 else:
                     logger.warning(f"MCP: bass clip failed ({r['message']})")
@@ -282,6 +285,7 @@ class AbletonMCPClient:
                         "track_index": drum_track, "clip_index": 0,
                         "name": drum_pattern.get("name", "Drums")})
                     self._load_eq_eight(drum_track)
+                    self._place_in_arrangement(drum_track, 0)
                     tracks.append("drums")
                 else:
                     logger.warning(f"MCP: drum clip failed ({r['message']})")
@@ -333,6 +337,15 @@ class AbletonMCPClient:
             if lr["success"]:
                 logger.info(f"MCP: {name} kit: {preset}")
         return track_index
+
+    def _place_in_arrangement(self, track_index: int, clip_index: int) -> None:
+        """Mirror a session clip onto the arrangement timeline at bar 1, so the
+        import is visible in both views. Unknown-command (unpatched script) or
+        any failure only warns — the session clip is the source of truth."""
+        r = self._send_command("clip_to_arrangement", {
+            "track_index": track_index, "clip_index": clip_index, "time": 0.0})
+        if not r["success"]:
+            logger.warning(f"MCP: arrangement placement skipped ({r['message']})")
 
     def _load_eq_eight(self, track_index: int) -> None:
         """Load an EQ Eight starting point onto a track. Failures only warn —

@@ -102,6 +102,7 @@ def test_send_progression_command_sequence(sample_progression):
         {"status": "success", "result": {"name": "Am F"}},
         {"status": "success", "result": {"note_count": 3}},
         {"status": "success", "result": {"note_count": 3}},
+        {"status": "success", "result": {"placed_at": 0.0}},
     ]
     mock_sock, sent_commands = _make_mock_socket(responses)
 
@@ -113,7 +114,12 @@ def test_send_progression_command_sequence(sample_progression):
     assert "2 chords" in result["message"]
     assert "6 notes" in result["message"]
 
-    assert len(sent_commands) == 9
+    assert len(sent_commands) == 10
+    # Session clip mirrored onto the arrangement timeline
+    assert sent_commands[9] == {
+        "type": "clip_to_arrangement",
+        "params": {"track_index": 3, "clip_index": 0, "time": 0.0},
+    }
 
     assert sent_commands[0] == {"type": "set_tempo", "params": {"tempo": 80}}
     # No key on the fixture → no set_song_key command
@@ -185,6 +191,7 @@ def test_send_progression_sets_song_key():
         {"status": "success", "result": {"length": 4.0}},
         {"status": "success", "result": {"name": "Am · A minor"}},
         {"status": "success", "result": {"note_count": 3}},
+        {"status": "success", "result": {"placed_at": 0.0}},
     ]
     mock_sock, sent_commands = _make_mock_socket(responses)
 
