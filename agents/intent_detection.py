@@ -270,6 +270,13 @@ def detect_intent_local(prompt: str) -> tuple:
         return ('melody_direction', CONFIDENCE_MELODY, extracted)
 
     if any(kw in prompt_lower for kw in BASS_KEYWORDS):
+        # The bass keyword itself often names the style — keep it.
+        if any(k in prompt_lower for k in ('sub bass', 'sub line', 'low end', 'low-end')):
+            extracted['bass_style'] = 'sub'
+        elif '808' in prompt_lower:
+            extracted['bass_style'] = 'trap'
+        elif 'walking bass' in prompt_lower:
+            extracted['bass_style'] = 'walking'
         return ('bass_line', CONFIDENCE_BASS, extracted)
 
     if any(kw in prompt_lower for kw in DRUM_KEYWORDS):

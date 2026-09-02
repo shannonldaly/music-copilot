@@ -157,3 +157,34 @@ def test_bass_line_respects_prompt_genre():
     assert "offbeat" in house["bass_line"]["pattern"]
     assert "passing note" in lofi["bass_line"]["pattern"]
     assert house["bass_line"]["root_notes"] == lofi["bass_line"]["root_notes"]
+
+
+def test_sub_bass_gets_sub_style_not_melody_reference():
+    """'sub bass' names the style: held sub roots, and a bass reference —
+    never the melody artist table (Deftones on a bass panel, 2026-09-02)."""
+    o = Orchestrator()
+    first = o.execute("dark and moody")
+    ctx = _ctx_from(first)
+    sub = o.execute("sub bass", session_context=ctx)
+    b = sub["bass_line"]
+    assert "held root" in b["pattern"]
+    assert "Sub-bass" in b["artist_reference"]
+    assert "Deftones" not in b["artist_reference"]
+    assert "melod" not in b["artist_reference"].lower()
+
+
+def test_808_bass_gets_trap_style():
+    o = Orchestrator()
+    first = o.execute("melancholic lo-fi in A minor")
+    ctx = _ctx_from(first)
+    r = o.execute("808 bass", session_context=ctx)
+    assert "808" in r["bass_line"]["pattern"]
+    assert "808" in r["bass_line"]["artist_reference"]
+
+
+def test_walking_bass_gets_walking_style():
+    o = Orchestrator()
+    first = o.execute("melancholic lo-fi in A minor")
+    ctx = _ctx_from(first)
+    r = o.execute("walking bass", session_context=ctx)
+    assert "walking" in r["bass_line"]["pattern"]

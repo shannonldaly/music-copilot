@@ -287,15 +287,11 @@ def generate_bass_line_local(primary: Dict, intent_data: Optional[Dict] = None) 
     """
     key_str = primary.get("key", "A minor")
     genres = list(primary.get("genres", []) or [])
-    moods = list(primary.get("moods", []) or [])
     prompt_genres = [g for g in (intent_data or {}).get("genres", []) if g]
-    prompt_moods = [m for m in (intent_data or {}).get("moods", []) if m]
     # The prompt's words are the selector when present (a union lets the
     # session's lo-fi tag win the first-match rule no matter what was asked);
     # the progression's tags only fill in when the prompt names none.
     pattern_genres = prompt_genres or genres
-    ref_genres = prompt_genres or genres
-    ref_moods = prompt_moods or moods
 
     root_notes = []
     for chord in primary.get("chords", []):
@@ -303,27 +299,45 @@ def generate_bass_line_local(primary: Dict, intent_data: Optional[Dict] = None) 
         if root:
             root_notes.append(f"{root}2")
 
+    # The prompt's bass keyword names the style outright ("sub bass", "808",
+    # "walking bass") and outranks genre tags entirely.
+    style = (intent_data or {}).get("bass_style")
     norm = {g.lower().replace("-", "_").replace(" ", "_") for g in pattern_genres}
-    if norm & {"lo_fi", "lofi", "chillhop", "jazz"}:
-        pattern = "roots on the downbeat, one bar each — add a passing note into the next chord on beat 4-and"
-        rhythm_feel = "behind the beat, long lazy notes, let each root ring"
-    elif norm & {"trap", "hip_hop", "drill", "emo_rap"}:
+    register = "octave 2 — below the chords, above the sub mud; high-pass everything else at 80-100Hz to make room"
+
+    if style == "sub":
+        pattern = "one held root per chord, an octave down — a clean sine or 808 glued to the kick"
+        rhythm_feel = "minimal and heavy; hold each root the full bar, slide into the next at the turn"
+        reference = "Sub-bass convention — movement comes from the filter and slides, never from busy notes; keep everything below 100Hz mono"
+        register = "octave 1-2 — this IS the sub; high-pass everything else at 80-100Hz so it owns the bottom"
+    elif style == "walking":
+        pattern = "quarter notes walking chord tones and passing notes toward each next root"
+        rhythm_feel = "even quarters with a light swing; land the target root on beat 1"
+        reference = "Jazz walking convention — each bar is a small journey that arrives on the next chord's root"
+    elif style == "trap" or norm & {"trap", "hip_hop", "drill", "emo_rap"}:
         pattern = "808 on each chord root — hold, then slide into the next root at the bar turn"
         rhythm_feel = "sparse and heavy, half-time; the slide is the hook"
+        reference = "808 convention — the 808 is kick tail and bassline in one; tune it to the root and let the slides do the talking"
+    elif norm & {"lo_fi", "lofi", "chillhop", "jazz"}:
+        pattern = "roots on the downbeat, one bar each — add a passing note into the next chord on beat 4-and"
+        rhythm_feel = "behind the beat, long lazy notes, let each root ring"
+        reference = "Lo-fi convention — root-heavy fingered bass with a soft attack, sitting just behind the drums; think warm amp, no grit"
     elif norm & {"house", "edm", "dance", "techno", "disco"}:
         pattern = "offbeat eighths on the root — the classic house pump between the kicks"
         rhythm_feel = "locked to the grid, every offbeat, no gaps"
+        reference = "House convention — the offbeat bass pumping between four-on-the-floor kicks is the genre's engine; keep notes short and percussive"
     else:
         pattern = "roots on beats 1 and 3, a fifth or octave on the and-of-2 for movement"
         rhythm_feel = "steady, mostly on the beat, small pushes into chord changes"
+        reference = "Root-first convention — outline the harmony with roots and fifths until the groove sits, then add color tones sparingly"
 
     return {
         "root_notes": root_notes,
         "pattern": pattern,
         "rhythm_feel": rhythm_feel,
-        "register": "octave 2 — below the chords, above the sub mud; high-pass everything else at 80-100Hz to make room",
+        "register": register,
         "tip": f"Follow the chord roots first ({' '.join(n[:-1] for n in root_notes)}) — a bass line that outlines the harmony always works; decorate only after it grooves",
-        "artist_reference": get_artist_reference(ref_genres, ref_moods),
+        "artist_reference": reference,
     }
 
 
