@@ -123,3 +123,21 @@ def test_session_id_returned(client):
 def test_empty_prompt_rejected(client):
     r = client.post("/api/generate", json={"prompt": ""})
     assert r.status_code == 422  # Validation error
+
+def test_artist_reference_user_mood_outranks_artist_mode(client):
+    """'moody and dark ... like fred again' must land in a minor key, not the
+    artist profile's default C major (2026-09-02 shoot bug)."""
+    r = client.post("/api/generate", json={"prompt": "moody and dark electronic sound like fred again"})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["intent"] == "artist_reference"
+    assert "minor" in d["key"]
+    assert d["progressions"]
+
+
+def test_artist_reference_explicit_key_still_wins(client):
+    r = client.post("/api/generate", json={"prompt": "something dark like Fred Again.. in E minor"})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["intent"] == "artist_reference"
+    assert d["key"] == "E minor"

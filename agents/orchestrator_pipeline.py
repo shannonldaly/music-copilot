@@ -215,7 +215,15 @@ def _lookup_artist_reference(extracted: dict) -> dict:
         return {}
 
     key_type = profile['key_type']
-    key_root = 'A' if key_type == 'minor' else 'C'
+    user_moods = extracted.get('moods') or []
+    # The user's stated mood outranks the artist's default mode: "dark like
+    # fred again" means his sound in a dark key, not his usual major.
+    if any(m in MINOR_MOODS for m in user_moods):
+        key_type = 'minor'
+    elif any(m in MAJOR_MOODS for m in user_moods):
+        key_type = 'major'
+
+    key_root = _vibe_key_root(user_moods, extracted.get('genres') or [], key_type)
 
     user_key = extracted.get('key')
     if user_key:
@@ -223,8 +231,9 @@ def _lookup_artist_reference(extracted: dict) -> dict:
         key_root = parts[0]
         key_type = parts[1] if len(parts) > 1 else key_type
 
+    search_moods = user_moods + [m for m in profile['moods'] if m not in user_moods]
     progressions = []
-    for mood in profile['moods']:
+    for mood in search_moods:
         progressions.extend(search_progressions(mood=mood, key_type=key_type))
 
     unique = _dedupe(progressions)
