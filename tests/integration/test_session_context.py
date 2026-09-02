@@ -113,3 +113,34 @@ def test_stage_bias_yields_to_explicit_harmony_request():
                          session_context=ctx, active_stage="melodyDir")
     assert followup["intent"] == "mood_vibe"
     assert followup["progressions"]
+
+
+def test_melody_direction_respects_prompt_mood():
+    """'dreamy melody' and 'epic melody' over the same progression must differ
+    (2026-09-02 shoot bug: intent_data was accepted but never used)."""
+    o = Orchestrator()
+    first = o.execute("melancholic lo-fi in A minor")
+    ctx = _ctx_from(first)
+    dreamy = o.execute("dreamy melody", session_context=ctx)
+    epic = o.execute("epic melody", session_context=ctx)
+    assert dreamy["melody_direction"]["contour"] != epic["melody_direction"]["contour"]
+    assert "wave" in dreamy["melody_direction"]["contour"]
+    assert "ascending" in epic["melody_direction"]["contour"]
+
+
+def test_melody_direction_prompt_genre_sets_rhythm():
+    o = Orchestrator()
+    first = o.execute("melancholic lo-fi in A minor")
+    ctx = _ctx_from(first)
+    trap = o.execute("trap melody", session_context=ctx)
+    assert "sparse" in trap["melody_direction"]["rhythm_feel"]
+
+
+def test_melody_direction_falls_back_to_progression_tags():
+    """A prompt with no mood/genre keeps the progression-derived direction."""
+    o = Orchestrator()
+    first = o.execute("melancholic lo-fi in A minor")
+    ctx = _ctx_from(first)
+    plain = o.execute("give me a melody", session_context=ctx)
+    assert "descending" in plain["melody_direction"]["contour"]
+    assert "behind the beat" in plain["melody_direction"]["rhythm_feel"]

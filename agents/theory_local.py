@@ -209,34 +209,47 @@ AVOID_NOTES_MAP = {
 
 
 def generate_melody_direction_local(primary: Dict, intent_data: Optional[Dict] = None) -> Dict:
-    """Generate melody direction from the primary progression using deterministic rules."""
+    """Generate melody direction from the primary progression using deterministic rules.
+
+    The prompt's extracted moods/genres (intent_data) take precedence over the
+    progression's stored tags, so "dreamy melody" and "epic melody" over the
+    same progression give different directions — matching the bass generator.
+    """
     key_str = primary.get("key", "A minor")
     parts = key_str.split()
     root = parts[0] if parts else "A"
     key_type = parts[1] if len(parts) > 1 else "minor"
 
-    genres = primary.get("genres", [])
-    moods = primary.get("moods", [])
+    genres = list(primary.get("genres", []) or [])
+    moods = list(primary.get("moods", []) or [])
+    prompt_moods = [m for m in (intent_data or {}).get("moods", []) if m]
+    prompt_genres = [g for g in (intent_data or {}).get("genres", []) if g]
+    # The prompt's words are the selector when present; the progression's tags
+    # only fill in when the prompt names no mood/genre.
+    contour_moods = prompt_moods or moods
+    rhythm_genres = prompt_genres or genres
 
     start_note = SCALE_FIFTHS.get(root, "E4")
     keyboard_hint = KEYBOARD_DESCRIPTIONS.get(start_note, "middle of the keyboard")
 
     # Contour based on mood
-    if any(m in moods for m in ["melancholic", "sad", "dark"]):
+    if any(m in contour_moods for m in ["melancholic", "sad", "dark"]):
         contour = "descending with brief upward reaches"
-    elif any(m in moods for m in ["uplifting", "epic", "happy"]):
+    elif any(m in contour_moods for m in ["uplifting", "epic", "happy"]):
         contour = "ascending arch — rises through the phrase then resolves down"
-    elif any(m in moods for m in ["dreamy", "ethereal", "chill"]):
+    elif any(m in contour_moods for m in ["dreamy", "ethereal", "chill"]):
         contour = "gentle wave — small intervals, stays within a narrow range"
     else:
         contour = "arch shape — rises to a peak near the phrase midpoint, then descends"
 
-    # Rhythm feel based on genre
-    if any(g in genres for g in ["lo-fi", "chillhop", "jazz"]):
+    # Rhythm feel based on genre (underscore-normalized: the intent extractor
+    # stores "lo_fi" while progression tags use "lo-fi")
+    rhythm_set = {str(g).replace("-", "_") for g in rhythm_genres}
+    if rhythm_set & {"lo_fi", "lofi", "chillhop", "jazz"}:
         rhythm_feel = "behind the beat, syncopated, lazy triplet feel"
-    elif any(g in genres for g in ["trap", "hip_hop"]):
+    elif rhythm_set & {"trap", "hip_hop"}:
         rhythm_feel = "sparse, rhythmic gaps, half-time melodic phrasing"
-    elif any(g in genres for g in ["edm", "house", "trance"]):
+    elif rhythm_set & {"edm", "house", "trance"}:
         rhythm_feel = "on the grid, repetitive motif with gradual variation"
     else:
         rhythm_feel = "relaxed, mostly on the beat with occasional syncopation"
@@ -251,7 +264,7 @@ def generate_melody_direction_local(primary: Dict, intent_data: Optional[Dict] =
         "avoid_on_strong_beats": avoid_notes,
         "avoid_context": avoid_context,
         "suggested_range": f"{root}3 to E5",
-        "artist_reference": get_artist_reference(genres, moods),
+        "artist_reference": get_artist_reference(rhythm_genres, contour_moods),
     }
 
 
