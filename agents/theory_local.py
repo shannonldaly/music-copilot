@@ -288,9 +288,14 @@ def generate_bass_line_local(primary: Dict, intent_data: Optional[Dict] = None) 
     key_str = primary.get("key", "A minor")
     genres = list(primary.get("genres", []) or [])
     moods = list(primary.get("moods", []) or [])
-    if intent_data:
-        genres += [g for g in intent_data.get("genres", []) if g not in genres]
-        moods += [m for m in intent_data.get("moods", []) if m not in moods]
+    prompt_genres = [g for g in (intent_data or {}).get("genres", []) if g]
+    prompt_moods = [m for m in (intent_data or {}).get("moods", []) if m]
+    # The prompt's words are the selector when present (a union lets the
+    # session's lo-fi tag win the first-match rule no matter what was asked);
+    # the progression's tags only fill in when the prompt names none.
+    pattern_genres = prompt_genres or genres
+    ref_genres = prompt_genres or genres
+    ref_moods = prompt_moods or moods
 
     root_notes = []
     for chord in primary.get("chords", []):
@@ -298,7 +303,7 @@ def generate_bass_line_local(primary: Dict, intent_data: Optional[Dict] = None) 
         if root:
             root_notes.append(f"{root}2")
 
-    norm = {g.lower().replace("-", "_").replace(" ", "_") for g in genres}
+    norm = {g.lower().replace("-", "_").replace(" ", "_") for g in pattern_genres}
     if norm & {"lo_fi", "lofi", "chillhop", "jazz"}:
         pattern = "roots on the downbeat, one bar each — add a passing note into the next chord on beat 4-and"
         rhythm_feel = "behind the beat, long lazy notes, let each root ring"
@@ -318,7 +323,7 @@ def generate_bass_line_local(primary: Dict, intent_data: Optional[Dict] = None) 
         "rhythm_feel": rhythm_feel,
         "register": "octave 2 — below the chords, above the sub mud; high-pass everything else at 80-100Hz to make room",
         "tip": f"Follow the chord roots first ({' '.join(n[:-1] for n in root_notes)}) — a bass line that outlines the harmony always works; decorate only after it grooves",
-        "artist_reference": get_artist_reference(genres, moods),
+        "artist_reference": get_artist_reference(ref_genres, ref_moods),
     }
 
 

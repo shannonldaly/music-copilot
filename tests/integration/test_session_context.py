@@ -144,3 +144,16 @@ def test_melody_direction_falls_back_to_progression_tags():
     plain = o.execute("give me a melody", session_context=ctx)
     assert "descending" in plain["melody_direction"]["contour"]
     assert "behind the beat" in plain["melody_direction"]["rhythm_feel"]
+
+
+def test_bass_line_respects_prompt_genre():
+    """'house bass line' in a lo-fi session must not return the lo-fi pattern
+    (the union let the session tag win the first-match rule)."""
+    o = Orchestrator()
+    first = o.execute("melancholic lo-fi in A minor")
+    ctx = _ctx_from(first)
+    house = o.execute("house bass line", session_context=ctx)
+    lofi = o.execute("give me a bass line", session_context=ctx)
+    assert "offbeat" in house["bass_line"]["pattern"]
+    assert "passing note" in lofi["bass_line"]["pattern"]
+    assert house["bass_line"]["root_notes"] == lofi["bass_line"]["root_notes"]
