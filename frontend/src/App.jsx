@@ -108,6 +108,11 @@ export default function App() {
   const [expandLoading, setExpandLoading] = useState(false);
   const [expandError, setExpandError] = useState(null);
   const [completionSendUi, setCompletionSendUi] = useState('idle');
+  // Sticky session identity: a drums or mix follow-up returns no key/vibe, but
+  // the sidebar should keep showing the session's, not fall back to "—".
+  const [projectKey, setProjectKey] = useState(null);
+  const [projectKeyWasSpecified, setProjectKeyWasSpecified] = useState(false);
+  const [projectVibe, setProjectVibe] = useState(null);
 
   const [agentStates, setAgentStates] = useState(initialAgentStates);
   const streamSimOffRef = useRef(false);
@@ -245,6 +250,9 @@ export default function App() {
     setHistoryStageId(null);
     setStageSnapshots({});
     setCompletionSendUi('idle');
+    setProjectKey(null);
+    setProjectKeyWasSpecified(false);
+    setProjectVibe(null);
   };
 
   const handleGenerate = async () => {
@@ -291,6 +299,13 @@ export default function App() {
       if (normalized && !normalized.clarification_only && normalized.bpm != null) {
         const next = Number(normalized.bpm);
         if (!Number.isNaN(next)) setBpm(next);
+      }
+      if (normalized && !normalized.clarification_only) {
+        if (normalized.key) {
+          setProjectKey(normalized.key);
+          setProjectKeyWasSpecified(normalized.key_was_specified === true);
+        }
+        if (normalized.genre_context) setProjectVibe(normalized.genre_context);
       }
       if (data.cost_usd != null) setTokenCostUsd(data.cost_usd);
       else if (normalized?.cost_usd != null) setTokenCostUsd(normalized.cost_usd);
@@ -687,10 +702,12 @@ export default function App() {
             songName={songName}
             onSongNameSaved={setSongName}
             sessionMode={sessionMode}
-            infoKey={model?.key ?? null}
-            infoBpm={model?.bpm}
-            infoVibe={model?.genre_context ?? null}
-            keyWasSpecified={model?.key_was_specified === true}
+            infoKey={model?.key ?? projectKey}
+            infoBpm={model?.bpm ?? bpm}
+            infoVibe={model?.genre_context ?? projectVibe}
+            keyWasSpecified={
+              model?.key != null ? model.key_was_specified === true : projectKeyWasSpecified
+            }
             stages={stages}
             suggestedText={suggestedCopy.text}
             suggestedPrefill={suggestedCopy.prefill}
@@ -737,7 +754,7 @@ export default function App() {
                 <ul className={styles.completionList}>
                   <li>
                     <span className={styles.completionLabel}>Key</span>
-                    <span className={styles.completionValue}>{model?.key || '—'}</span>
+                    <span className={styles.completionValue}>{model?.key || projectKey || '—'}</span>
                   </li>
                   <li>
                     <span className={styles.completionLabel}>BPM</span>
