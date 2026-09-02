@@ -6,6 +6,7 @@ import {
   generatePrompt,
   generatePromptStreaming,
   postFeedback,
+  sendArrangementToAbleton,
 } from './utils/api';
 import { normalizeGenerateResponse } from './utils/normalize';
 import { playProgression, playDrumPattern, stopPlayback } from './utils/playback';
@@ -106,6 +107,7 @@ export default function App() {
 
   const [expandLoading, setExpandLoading] = useState(false);
   const [expandError, setExpandError] = useState(null);
+  const [completionSendUi, setCompletionSendUi] = useState('idle');
 
   const [agentStates, setAgentStates] = useState(initialAgentStates);
   const streamSimOffRef = useRef(false);
@@ -242,6 +244,7 @@ export default function App() {
     setJustConfirmedStageId(null);
     setHistoryStageId(null);
     setStageSnapshots({});
+    setCompletionSendUi('idle');
   };
 
   const handleGenerate = async () => {
@@ -531,6 +534,21 @@ export default function App() {
     }, 600);
   };
 
+  const handleCompletionSend = async () => {
+    if (!sessionId || completionSendUi === 'sending') return;
+    setCompletionSendUi('sending');
+    try {
+      const bpmRaw = Number(model?.bpm ?? bpm);
+      const data = await sendArrangementToAbleton({
+        sessionId,
+        bpm: Number.isFinite(bpmRaw) && bpmRaw > 0 ? Math.round(bpmRaw) : 120,
+      });
+      setCompletionSendUi(data?.success ? 'sent' : 'error');
+    } catch {
+      setCompletionSendUi('error');
+    }
+  };
+
   // Sending to Ableton is a stronger commitment than Keep: confirm the
   // progression and steer to the next stage instead of leaving the flow parked.
   const handleSendSuccess = () => {
@@ -739,11 +757,22 @@ export default function App() {
                 <button
                   type="button"
                   className={styles.openAbleton}
-                  onClick={() => console.log('MCP not connected yet')}
+                  onClick={handleCompletionSend}
+                  disabled={completionSendUi === 'sending'}
                 >
-                  Open in Ableton
+                  {completionSendUi === 'sending'
+                    ? 'Sending…'
+                    : completionSendUi === 'sent'
+                      ? 'Sent to Ableton ✓'
+                      : 'Send to Ableton'}
                 </button>
-                <p className={styles.completionHint}>Ableton integration coming soon</p>
+                <p className={styles.completionHint}>
+                  {completionSendUi === 'sent'
+                    ? 'Chords, bass, and drums are in your set — Session and Arrangement view.'
+                    : completionSendUi === 'error'
+                      ? 'Could not reach Ableton — is Live open with the Rubato remote script?'
+                      : 'Lands chords, bass, and drums as tracks in your open Live set.'}
+                </p>
               </div>
             ) : null}
 
