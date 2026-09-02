@@ -309,6 +309,21 @@ export default function App() {
       setPostKeepFocus(null);
       setWorkspaceFadeKeep(false);
       setHistoryStageId(null);
+
+      // A follow-up answer renders below the chord cards; without a scroll the
+      // viewport still shows the progression and the response looks lost.
+      const followUpPanel = {
+        melody_direction: 'melody-direction-panel',
+        bass_line: 'bass-line-panel',
+        sound_engineering: 'sound-engineering-panel',
+      }[data.intent];
+      if (followUpPanel) {
+        setTimeout(() => {
+          document
+            .querySelector(`[data-testid="${followUpPanel}"]`)
+            ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 350);
+      }
     } catch (e) {
       setError(e.message || 'Request failed');
       setAgentStates(initialAgentStates());
