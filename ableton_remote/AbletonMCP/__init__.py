@@ -232,7 +232,7 @@ class AbletonMCP(ControlSurface):
             # Commands that modify Live's state should be scheduled on the main thread
             elif command_type in ["create_midi_track", "set_track_name", 
                                  "create_clip", "add_notes_to_clip", "set_clip_name", 
-                                 "set_tempo", "fire_clip", "stop_clip",
+                                 "set_tempo", "set_song_key", "fire_clip", "stop_clip",
                                  "start_playback", "stop_playback", "load_browser_item"]:
                 # Use a thread-safe approach with a response queue
                 response_queue = queue.Queue()
@@ -266,6 +266,10 @@ class AbletonMCP(ControlSurface):
                         elif command_type == "set_tempo":
                             tempo = params.get("tempo", 120.0)
                             result = self._set_tempo(tempo)
+                        elif command_type == "set_song_key":
+                            root_note = params.get("root_note", 0)
+                            scale_name = params.get("scale_name", "Major")
+                            result = self._set_song_key(root_note, scale_name)
                         elif command_type == "fire_clip":
                             track_index = params.get("track_index", 0)
                             clip_index = params.get("clip_index", 0)
@@ -581,6 +585,16 @@ class AbletonMCP(ControlSurface):
             self.log_message("Error setting tempo: " + str(e))
             raise
     
+    def _set_song_key(self, root_note, scale_name):
+        """Set the song's Key & Scale (Live 12): root_note 0-11 (C=0), scale_name e.g. Major/Minor"""
+        try:
+            self._song.root_note = int(root_note)
+            self._song.scale_name = str(scale_name)
+            return {"root_note": self._song.root_note, "scale_name": self._song.scale_name}
+        except Exception as e:
+            self.log_message("Error setting song key: {0}".format(str(e)))
+            raise
+
     def _fire_clip(self, track_index, clip_index):
         """Fire a clip"""
         try:
