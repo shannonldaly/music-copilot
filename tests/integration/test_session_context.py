@@ -80,3 +80,36 @@ def test_followup_without_context_still_generates():
     result = o.execute("Suggest a melodic direction over this progression")
     assert result["success"]
     assert result.get("progression") or result.get("melody_direction")
+
+
+def test_stage_biased_mood_prompt_refines_melody_not_harmony():
+    """A keyword-free-of-'melody' mood prompt at the melodyDir stage answers over
+    the current progression instead of regenerating it (2026-09-02 shoot bug)."""
+    o = Orchestrator()
+    first = o.execute("melancholic lo-fi in A minor")
+    ctx = _ctx_from(first)
+    followup = o.execute("make it dreamier and more floaty",
+                         session_context=ctx, active_stage="melodyDir")
+    assert followup["intent"] == "melody_direction"
+    assert followup["progression"]["name"] == first["progression"]["name"]
+    assert followup["melody_direction"]
+
+
+def test_stage_biased_bass_prompt_answers_over_progression():
+    o = Orchestrator()
+    first = o.execute("melancholic lo-fi in A minor")
+    ctx = _ctx_from(first)
+    followup = o.execute("something rounder and warmer underneath",
+                         session_context=ctx, active_stage="bass")
+    assert followup["intent"] == "bass_line"
+    assert followup["bass_line"]["root_notes"]
+
+
+def test_stage_bias_yields_to_explicit_harmony_request():
+    o = Orchestrator()
+    first = o.execute("melancholic lo-fi in A minor")
+    ctx = _ctx_from(first)
+    followup = o.execute("give me a darker progression instead",
+                         session_context=ctx, active_stage="melodyDir")
+    assert followup["intent"] == "mood_vibe"
+    assert followup["progressions"]

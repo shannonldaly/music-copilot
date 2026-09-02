@@ -8,23 +8,29 @@ export const api = axios.create({
   timeout: 120000,
 });
 
-export async function generatePrompt(prompt, sessionId) {
+export async function generatePrompt(prompt, sessionId, stage) {
   const { data } = await api.post('/api/generate', {
     prompt,
     session_id: sessionId || undefined,
     use_api: false,
+    stage: stage || undefined,
   });
   return data;
 }
 
-export async function generatePromptStreaming(prompt, sessionId, { onAgentEvent } = {}) {
+export async function generatePromptStreaming(prompt, sessionId, { onAgentEvent, stage } = {}) {
   const res = await fetch(`${BASE}/api/generate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json, application/x-ndjson, text/event-stream',
     },
-    body: JSON.stringify({ prompt, session_id: sessionId || undefined, use_api: false }),
+    body: JSON.stringify({
+      prompt,
+      session_id: sessionId || undefined,
+      use_api: false,
+      stage: stage || undefined,
+    }),
   });
 
   if (!res.ok) {

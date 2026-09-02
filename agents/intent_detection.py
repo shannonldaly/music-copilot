@@ -60,6 +60,33 @@ SOUND_ENGINEERING_KEYWORDS = [
 ]
 PRODUCTION_KEYWORDS = ['how do i', 'how to']
 
+# Stage-aware routing: the frontend sends the sidebar stage its prompt is
+# addressing; a mood_vibe verdict at one of these stages is re-routed to the
+# stage's own intent so "make it dreamier" on the melody stage refines the
+# melody instead of regenerating the progression.
+STAGE_INTENT_BIAS = {
+    # chords / full session stages
+    'melodyDir': 'melody_direction',
+    'bass': 'bass_line',
+    'drums': 'drum_pattern',
+    'mix': 'sound_engineering',
+    # drums session stages
+    'genreFeel': 'drum_pattern',
+    'bpm': 'drum_pattern',
+    'pattern': 'drum_pattern',
+    'splice': 'drum_pattern',
+    # mixing session stages
+    'section': 'sound_engineering',
+    'targetVibe': 'sound_engineering',
+    'eq': 'sound_engineering',
+    'automation': 'sound_engineering',
+}
+
+# At a biased stage these words mean the user really does want new harmony,
+# so the keyword verdict stands.
+HARMONY_OVERRIDE_KEYWORDS = ['progression', 'chord', 'reharm', 'harmony',
+                             'voicing', 'key change']
+
 # Confidence scores
 CONFIDENCE_ARTIST_BLEND = 0.95
 CONFIDENCE_SOUND_ENGINEERING = 0.9
@@ -70,6 +97,7 @@ CONFIDENCE_BASS = 0.85
 CONFIDENCE_ARTIST_REF = 0.9
 CONFIDENCE_MOOD_VIBE = 0.9
 CONFIDENCE_FALLBACK = 0.5
+CONFIDENCE_STAGE_BIAS = 0.75
 
 # Key inference defaults
 MINOR_GENRES = {'lo_fi', 'lofi', 'trap', 'hip_hop', 'emo_rap', 'ambient'}
@@ -172,6 +200,35 @@ def _extract_artists(prompt: str) -> List[str]:
 # =============================================================================
 # Local intent detection
 # =============================================================================
+
+def apply_stage_bias(intent_type: str, confidence: float, extracted: dict,
+                     active_stage: str, prompt: str) -> tuple:
+    """
+    Re-route a mood_vibe verdict to the active sidebar stage's own intent.
+
+    Expects: the keyword verdict (intent_type, confidence, extracted), the
+    stage id the frontend says the prompt addresses (may be None), and the
+    raw prompt.
+    Guarantees: returns (intent_type, confidence, biased). Only mood_vibe is
+    ever re-routed — a specific keyword verdict (bass_line, drum_pattern,
+    sound_engineering, artist_*…) always stands, as does mood_vibe when the
+    prompt explicitly asks for harmony (HARMONY_OVERRIDE_KEYWORDS).
+    If something is missing: unknown or absent stage ids change nothing.
+    Downstream: orchestrator.execute skips headless enrichment when biased is
+    True; lookup_local answers the biased intent over the session context.
+    """
+    target = STAGE_INTENT_BIAS.get(active_stage or '')
+    if not target or intent_type != 'mood_vibe':
+        return intent_type, confidence, False
+
+    prompt_lower = prompt.lower()
+    if any(kw in prompt_lower for kw in HARMONY_OVERRIDE_KEYWORDS):
+        return intent_type, confidence, False
+
+    if target == 'sound_engineering':
+        extracted['question'] = prompt
+    return target, CONFIDENCE_STAGE_BIAS, True
+
 
 def detect_intent_local(prompt: str) -> tuple:
     """

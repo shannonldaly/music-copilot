@@ -64,3 +64,5 @@
 | Stripe Checkout integration | No payment processing yet | Phase 5+ | N/A until productizing |
 | Multi-user support | Currently single-user only | Phase 5+ | N/A until client deployments |
 | Knowledge graph layer | For distilling agent memory into fewer tokens at scale | Phase 5+ | Low now — only needed at high API volume |
+| Stage hint in API-mode intent detection | apply_stage_bias is local-mode only; Haiku intent parsing ignores the frontend stage | Phase 5 | Low while running local mode (no API key) — see decisions/2026-09-02-stage-aware-intent-routing.md |
+| Mix-stage prompts with unrecognized SE topics | Stage-biased sound_engineering falls back to empty payload without an API key | Phase 5 | Low — pre-existing SE agent behavior, now reachable from the mix stage |

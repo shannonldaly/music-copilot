@@ -255,19 +255,24 @@ export default function App() {
 
     const prefix = stages && sessionMode ? buildContextPrefix(stages, seq) : '';
     const fullPrompt = prefix + text;
+    const activeStage =
+      stages && sessionMode
+        ? firstAwaitingConfirmStage(stages, sessionMode) || nextSuggestedStage(stages, sessionMode)
+        : null;
 
     try {
       let data;
       try {
         const out = await generatePromptStreaming(fullPrompt, sessionId, {
           onAgentEvent: applyStreamAgent,
+          stage: activeStage,
         });
         data = out.data;
       } catch {
         data = null;
       }
       if (!data) {
-        data = await generatePrompt(fullPrompt, sessionId);
+        data = await generatePrompt(fullPrompt, sessionId, activeStage);
       }
 
       if (!data) {

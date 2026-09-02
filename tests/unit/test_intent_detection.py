@@ -162,3 +162,55 @@ def test_drum_intent_leaves_genres_empty_for_context():
     intent, conf, ext = o.detect_intent_local("Give me a drum pattern that matches this vibe")
     assert intent == "drum_pattern"
     assert ext["genres"] == []
+
+
+# =========================================================================
+# Stage-aware routing bias (apply_stage_bias)
+# =========================================================================
+
+from agents.intent_detection import apply_stage_bias
+
+
+def test_stage_bias_reroutes_mood_prompt_at_melody_stage():
+    """'make it dreamier' on the melody stage refines the melody, not the harmony."""
+    o = Orchestrator()
+    intent, conf, ext = o.detect_intent_local("make it dreamier and more floaty")
+    assert intent == "mood_vibe"
+    intent, conf, biased = apply_stage_bias(intent, conf, ext, "melodyDir", "make it dreamier and more floaty")
+    assert biased is True
+    assert intent == "melody_direction"
+
+
+def test_stage_bias_reroutes_bass_drums_mix_stages():
+    for stage, expected in [("bass", "bass_line"), ("drums", "drum_pattern"), ("mix", "sound_engineering")]:
+        intent, conf, biased = apply_stage_bias("mood_vibe", 0.9, {}, stage, "warmer and rounder please")
+        assert biased is True, stage
+        assert intent == expected, stage
+
+
+def test_stage_bias_sets_question_for_sound_engineering():
+    ext = {}
+    intent, conf, biased = apply_stage_bias("mood_vibe", 0.9, ext, "mix", "warmer and rounder please")
+    assert ext["question"] == "warmer and rounder please"
+
+
+def test_stage_bias_respects_explicit_harmony_request():
+    """Asking for a new progression at the melody stage still regenerates harmony."""
+    intent, conf, biased = apply_stage_bias(
+        "mood_vibe", 0.9, {"moods": ["dreamy"]}, "melodyDir", "give me a dreamier progression instead")
+    assert biased is False
+    assert intent == "mood_vibe"
+
+
+def test_stage_bias_never_overrides_specific_intents():
+    """A specific keyword verdict (bass at melody stage, drums at bass stage…) stands."""
+    intent, conf, biased = apply_stage_bias("bass_line", 0.85, {}, "melodyDir", "give me a bass line")
+    assert biased is False
+    assert intent == "bass_line"
+
+
+def test_stage_bias_noop_without_stage_or_unknown_stage():
+    for stage in (None, "", "progression", "not-a-stage"):
+        intent, conf, biased = apply_stage_bias("mood_vibe", 0.9, {}, stage, "something dreamy")
+        assert biased is False
+        assert intent == "mood_vibe"

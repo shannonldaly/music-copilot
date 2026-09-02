@@ -73,6 +73,7 @@ class GenerateRequest(BaseModel):
     prompt: str = Field(..., description="User's request", min_length=1)
     session_id: Optional[str] = Field(None, description="Session ID for context")
     use_api: bool = Field(False, description="Use LLM for intent detection and all creative agents")
+    stage: Optional[str] = Field(None, description="Sidebar stage the prompt addresses (e.g. melodyDir, bass, drums, mix) — biases local intent routing toward that stage's intent")
 
 
 class GenerateResponse(BaseModel):
@@ -259,6 +260,7 @@ async def generate(request: GenerateRequest):
         request.prompt,
         use_api=request.use_api,
         session_context=_session_context(session),
+        active_stage=request.stage,
     )
     result["session_id"] = session.session_id
 

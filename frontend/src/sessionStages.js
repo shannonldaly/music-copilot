@@ -126,6 +126,14 @@ export function getSuggestionForStage(mode, stageId) {
   return table?.[stageId] || { text: 'Try a follow-up in the input bar.', prefill: '' };
 }
 
+/** Follow-up intents (answered over the progression on screen) → the chords/full stage they fill. */
+const FOLLOWUP_INTENT_STAGE = {
+  melody_direction: 'melodyDir',
+  bass_line: 'bass',
+  drum_pattern: 'drums',
+  sound_engineering: 'mix',
+};
+
 function emptyStage(status, value = '') {
   return { status, value, confirmed: false };
 }
@@ -165,19 +173,37 @@ export function applyApiToStages(prev, mode, apiPayload, normalized) {
   } else if (mode === SESSION_MODES.MIXING) {
     if (apiPayload?.intent) setDone('section', apiPayload.intent);
   } else {
-    if (normalized?.progression_name || apiPayload?.progression_name) {
-      setDone('progression', normalized?.progression_name || apiPayload?.progression_name);
-    }
-    const md = apiPayload?.melody_direction || normalized?.melody_direction;
-    const prog = next.progression;
-    const progressionLocked =
-      prog && prog.status === 'done' && prog.confirmed;
-    if (
-      progressionLocked &&
-      md &&
-      (typeof md === 'object' ? Object.keys(md).length : String(md).length)
-    ) {
-      setDone('melodyDir', 'Defined');
+    // Follow-up intents answer over the progression already on screen; the
+    // echoed progression is context, not a new result — mark the follow-up's
+    // own stage and leave the confirmed progression alone.
+    const intent = apiPayload?.intent || normalized?.intent;
+    const followUpStage = FOLLOWUP_INTENT_STAGE[intent];
+    if (followUpStage) {
+      const md = apiPayload?.melody_direction || normalized?.melody_direction;
+      if (followUpStage === 'melodyDir' && md) {
+        setDone('melodyDir', 'Defined');
+      } else if (followUpStage === 'bass' && apiPayload?.bass_line) {
+        setDone('bass', 'Defined');
+      } else if (followUpStage === 'drums' && apiPayload?.drum_patterns?.length) {
+        setDone('drums', apiPayload?.progression_name || normalized?.progression_name || 'Defined');
+      } else if (followUpStage === 'mix' && apiPayload?.sound_engineering_response) {
+        setDone('mix', 'Defined');
+      }
+    } else {
+      if (normalized?.progression_name || apiPayload?.progression_name) {
+        setDone('progression', normalized?.progression_name || apiPayload?.progression_name);
+      }
+      const md = apiPayload?.melody_direction || normalized?.melody_direction;
+      const prog = next.progression;
+      const progressionLocked =
+        prog && prog.status === 'done' && prog.confirmed;
+      if (
+        progressionLocked &&
+        md &&
+        (typeof md === 'object' ? Object.keys(md).length : String(md).length)
+      ) {
+        setDone('melodyDir', 'Defined');
+      }
     }
   }
 

@@ -23,6 +23,7 @@ from utils.logging import log_agent_call
 from agents.intent_detection import (
     IntentType, ParsedIntent, RoutingPlan, OrchestratorResult,
     detect_intent_local as _detect_intent_local,
+    apply_stage_bias,
     parse_intent_with_llm, determine_routing,
 )
 from agents.orchestrator_pipeline import (
@@ -89,7 +90,8 @@ class Orchestrator:
         return _detect_intent_local(prompt)
 
     @log_agent_call
-    def execute(self, prompt: str, use_api: bool = False, session_context: dict = None) -> dict:
+    def execute(self, prompt: str, use_api: bool = False, session_context: dict = None,
+                active_stage: str = None) -> dict:
         """
         Full pipeline entry point. Returns a dict ready for GenerateResponse.
 
@@ -98,6 +100,8 @@ class Orchestrator:
         session_context ({progression, key, genres, bpm}, from the caller's session
         history) makes follow-up intents answer over the current progression;
         without it every prompt regenerates from scratch (pre-context behavior).
+        active_stage (sidebar stage id from the frontend, local mode only) biases
+        a mood_vibe verdict toward that stage's intent — see apply_stage_bias.
         """
         self.tracker.reset_for_request()
 
@@ -119,7 +123,9 @@ class Orchestrator:
             local_data = orch_result.local_data or {}
         else:
             intent_type, confidence, extracted = self.detect_intent_local(prompt)
-            if confidence <= 0.5 and not (extracted.get("moods") or extracted.get("genres") or extracted.get("key") or extracted.get("artists")):
+            intent_type, confidence, stage_biased = apply_stage_bias(
+                intent_type, confidence, extracted, active_stage, prompt)
+            if not stage_biased and confidence <= 0.5 and not (extracted.get("moods") or extracted.get("genres") or extracted.get("key") or extracted.get("artists")):
                 # Keyword lists drew a blank — one headless-Claude call (billed to
                 # the subscription, not the API) reads the free-form prompt so it
                 # doesn't silently land on the C-major fallback.
